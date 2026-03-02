@@ -1,0 +1,41 @@
+networks:
+  frontend-net:
+    driver: bridge
+    internal: false
+  backend-net:
+    driver: bridge
+    internal: true
+  management-net:
+    driver: bridge
+    internal: true
+  keycloak-net:
+    driver: bridge
+    internal: false
+
+volumes:
+  minio-data:
+    driver: local
+  clickhouse-data:
+    driver: local
+  airflow-data:
+    driver: local
+  postgres-data:
+    driver: local
+  vault-data:
+    driver: local
+  keycloak-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  loki-data:
+    driver: local
+  superset-data:
+    driver: local
+  openmetadata-data:
+    driver: local
+  redis-data:
+    driver: local
+  spark-data:
+    driver: local
