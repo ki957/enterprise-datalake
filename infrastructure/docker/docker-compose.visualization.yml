@@ -1,0 +1,57 @@
+networks:
+  frontend-net:
+    external: true
+    name: docker_frontend-net
+  backend-net:
+    external: true
+    name: docker_backend-net
+
+volumes:
+  superset-data:
+    external: true
+    name: docker_superset-data
+  redis-data:
+    external: true
+    name: docker_redis-data
+
+services:
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --requirepass Redis@2024
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend-net
+
+  superset:
+    image: apache/superset:3.1.0
+    container_name: superset
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: SupersetSecret@2024
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://postgres:Postgres@2024@postgres:5432/airflow
+      REDIS_URL: redis://:Redis@2024@redis:6379/0
+    volumes:
+      - superset-data:/app/superset_home
+    depends_on:
+      - redis
+    networks:
+      - frontend-net
+      - backend-net
+    command: >
+      bash -c "
+        superset db upgrade &&
+        superset fab create-admin
+          --username admin
+          --firstname Admin
+          --lastname User
+          --email admin@example.com
+          --password Superset@2024 &&
+        superset init &&
+        superset run -h 0.0.0.0 -p 8088
+      "

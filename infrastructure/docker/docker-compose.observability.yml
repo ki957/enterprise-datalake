@@ -1,0 +1,48 @@
+networks:
+  frontend-net:
+    external: true
+    name: docker_frontend-net
+  management-net:
+    external: true
+    name: docker_management-net
+
+volumes:
+  prometheus-data:
+    external: true
+    name: docker_prometheus-data
+  grafana-data:
+    external: true
+    name: docker_grafana-data
+
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - management-net
+      - frontend-net
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: Grafana@2024
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - frontend-net
+      - management-net

@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: raw_customers
+    description: Raw customers data
+  - name: stg_customers
+    description: Cleaned and staged customers
+  - name: dim_customers
+    description: Customer dimension table - business ready

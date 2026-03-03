@@ -1,0 +1,122 @@
+networks:
+  frontend-net:
+    external: true
+    name: docker_frontend-net
+  backend-net:
+    external: true
+    name: docker_backend-net
+
+volumes:
+  airbyte-data:
+    driver: local
+
+services:
+
+  airbyte-db:
+    image: postgres:15
+    container_name: airbyte-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: airbyte
+      POSTGRES_USER: airbyte
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - airbyte-data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+
+  airbyte-temporal:
+    image: temporalio/auto-setup:1.20.0
+    container_name: airbyte-temporal
+    restart: unless-stopped
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: airbyte
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: airbyte-db
+    depends_on:
+      - airbyte-db
+    networks:
+      - backend-net
+
+  airbyte-connector-builder:
+    image: airbyte/connector-builder-server:0.50.40
+    container_name: airbyte-connector-builder
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    networks:
+      - frontend-net
+      - backend-net
+
+  airbyte-server:
+    image: airbyte/server:0.50.40
+    container_name: airbyte-server
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      AIRBYTE_ROLE: server
+      AIRBYTE_VERSION: 0.50.40
+      DATABASE_URL: jdbc:postgresql://airbyte-db:5432/airbyte
+      DATABASE_USER: airbyte
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      CONFIG_ROOT: /data
+      WORKSPACE_ROOT: /tmp/workspace
+      TRACKING_STRATEGY: logging
+      TEMPORAL_HOST: airbyte-temporal:7233
+      INTERNAL_API_HOST: airbyte-server:8001
+      CONNECTOR_BUILDER_SERVER_API_HOST: airbyte-connector-builder:8003
+    volumes:
+      - /tmp/airbyte/data:/data
+      - /tmp/airbyte/workspace:/tmp/workspace
+    depends_on:
+      - airbyte-db
+      - airbyte-temporal
+    networks:
+      - frontend-net
+      - backend-net
+
+  airbyte-worker:
+    image: airbyte/worker:0.50.40
+    container_name: airbyte-worker
+    restart: unless-stopped
+    environment:
+      AIRBYTE_ROLE: worker
+      AIRBYTE_VERSION: 0.50.40
+      DATABASE_URL: jdbc:postgresql://airbyte-db:5432/airbyte
+      DATABASE_USER: airbyte
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      WORKSPACE_ROOT: /tmp/workspace
+      WORKER_ENVIRONMENT: docker
+      LOCAL_ROOT: /tmp/airbyte_local
+      TEMPORAL_HOST: airbyte-temporal:7233
+      INTERNAL_API_HOST: airbyte-server:8001
+    volumes:
+      - /tmp/airbyte/workspace:/tmp/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - airbyte-server
+    networks:
+      - backend-net
+
+  airbyte-webapp:
+    image: airbyte/webapp:0.50.40
+    container_name: airbyte-webapp
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      INTERNAL_API_HOST: airbyte-server:8001
+      CONNECTOR_BUILDER_API_HOST: airbyte-connector-builder:8003
+      AIRBYTE_SERVER_HOST: airbyte-server
+      AIRBYTE_SERVER_PORT: 8001
+      AIRBYTE_SERVER_PROTO: http
+      TRACKING_STRATEGY: logging
+    depends_on:
+      - airbyte-server
+      - airbyte-connector-builder
+    networks:
+      - frontend-net
+      - backend-net
