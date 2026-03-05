@@ -35,7 +35,6 @@ services:
     environment:
       SUPERSET_SECRET_KEY: SupersetSecret@2024
       SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
-      REDIS_URL: redis://:Redis@2024@redis:6379/0
     volumes:
       - superset-data:/app/superset_home
     depends_on:
@@ -43,4 +42,4 @@ services:
     networks:
       - frontend-net
       - backend-net
-    command: bash -c "superset db upgrade && superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password Superset@2024 && superset init && superset run -h 0.0.0.0 -p 8088"
+    command: bash -c "pip install clickhouse-sqlalchemy==0.2.4 --quiet && superset db upgrade && superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password Superset@2024 && superset init && superset run -h 0.0.0.0 -p 8088"

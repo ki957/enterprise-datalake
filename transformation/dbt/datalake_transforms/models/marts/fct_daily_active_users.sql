@@ -1,0 +1,13 @@
+
+{{ config(materialized='table', engine='MergeTree()', order_by='event_date', schema='gold') }}
+SELECT
+    event_date,
+    count(DISTINCT user_id) AS dau,
+    count() AS total_events,
+    countIf(event_type='login') AS logins,
+    countIf(event_type='signup') AS signups,
+    countIf(event_type='upgrade') AS upgrades,
+    countIf(event_type='payment_failed') AS payment_failures
+FROM {{ ref('stg_events') }}
+GROUP BY event_date
+ORDER BY event_date
