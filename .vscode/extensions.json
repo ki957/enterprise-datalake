@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "mtxr1992.dbt-power-user",
+    "redhat.vscode-yaml",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "msjsdiag.debugger-for-chrome"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "folders": [
+    { "name": "📦 Project Root", "path": "." },
+    { "name": "🤖 AI Agent (Backend)", "path": "services/ai-agent" },
+    { "name": "🎨 AI Agent (Frontend)", "path": "services/ai-agent-v2/frontend" },
+    { "name": "🔄 Orchestration", "path": "orchestration" },
+    { "name": "🔄 Transformation", "path": "transformation" },
+    { "name": "🏗️ Infrastructure", "path": "infrastructure" },
+    { "name": "📊 Governance", "path": "governance" },
+    { "name": "🧪 Tests", "path": "tests" },
+    { "name": "📄 Docs", "path": "docs" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/__pycache__": true,
+      "**/.git": true,
+      "**/target": true,
+      "**/dbt_packages": true,
+      "**/graphify-out/cache": true
+    },
+    "python.analysis.typeCheckingMode": "basic",
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "editor.formatOnSave": true,
+    "editor.rulers": [100],
+    "files.watcherExclude": {
+      "**/graphify-out/**": true
+    }
+  }
+}

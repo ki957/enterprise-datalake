@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "make all (Full Stack)",
+      "type": "shell",
+      "command": "make all",
+      "group": "build",
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "make ui (Frontend + Backend)",
+      "type": "shell",
+      "command": "make ui",
+      "group": "build"
+    },
+    {
+      "label": "dbt run gold",
+      "type": "shell",
+      "command": "cd transformation/dbt/datalake_transforms && dbt run --select gold",
+      "group": "build"
+    },
+    {
+      "label": "docker compose up (observability)",
+      "type": "shell",
+      "command": "make observability",
+      "group": "build"
+    }
+  ]
+}

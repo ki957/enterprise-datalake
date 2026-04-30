@@ -1,0 +1,21 @@
+{
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.extraPaths": [".", "services/ai-agent"],
+  "python.linting.enabled": true,
+  "python.linting.ruffEnabled": true,
+  "python.linting.ruffPath": "ruff",
+  "python.formatting.provider": "none",
+  "editor.rulers": [100],
+  "files.associations": {
+    "*.yml": "yaml",
+    "*.sql": "sql"
+  },
+  "yaml.schemas": {
+    "https://json.schemastore.org/docker-compose": "docker-compose*.yml",
+    "https://raw.githubusercontent.com/great-expectations/great_expectations/develop/great_expectations/expectations/schemas/expectation_suite_schema.json": "expectations/*.json"
+  },
+  "dbt.powerUser.dbtProjectPath": "transformation/dbt/datalake_transforms/dbt_project.yml",
+  "dbt.powerUser.dbtPath": "dbt",
+  "eslint.validate": ["javascript", "javascriptreact"],
+  "prettier.enable": true
+}
