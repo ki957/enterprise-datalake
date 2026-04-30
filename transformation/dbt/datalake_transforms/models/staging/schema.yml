@@ -1,0 +1,88 @@
+version: 2
+
+models:
+  - name: stg_users
+    description: Cleaned SaaS user records from PostgreSQL raw.saas_users.
+    columns:
+      - name: user_id
+        description: PK — source id
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: plan
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise', 'free']
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'cancelled', 'trial', 'suspended']
+      - name: mrr
+        tests:
+          - not_null
+      - name: country
+        tests:
+          - not_null
+
+  - name: stg_events
+    description: User activity events from PostgreSQL raw.saas_events.
+    columns:
+      - name: event_id
+        description: PK — source id
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['login', 'signup', 'upgrade', 'downgrade', 'payment_failed',
+                       'page_view', 'feature_use', 'logout']
+      - name: occurred_at
+        tests:
+          - not_null
+      - name: event_date
+        tests:
+          - not_null
+
+  - name: stg_subscriptions
+    description: Subscription records from PostgreSQL raw.saas_subscriptions.
+    columns:
+      - name: subscription_id
+        description: PK — source id
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: FK to stg_users
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_users')
+              field: user_id
+      - name: plan
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise', 'free']
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'cancelled', 'trial']
+      - name: mrr
+        tests:
+          - not_null
+      - name: billing_cycle
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['monthly', 'annual', 'quarterly']

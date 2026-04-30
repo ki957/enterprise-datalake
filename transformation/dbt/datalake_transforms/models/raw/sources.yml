@@ -2,8 +2,43 @@ version: 2
 
 sources:
   - name: raw
-    database: default
-    schema: default
+    database: raw
+    schema: raw
+    description: >
+      Raw SaaS data landed by the Airflow shopflow_datalake_pipeline DAG.
+      Loaded from PostgreSQL (saas_users, saas_events, saas_subscriptions tables)
+      into ClickHouse raw schema on each daily run.
+
+    freshness:
+      warn_after: {count: 25, period: hour}
+      error_after: {count: 49, period: hour}
+    loaded_at_field: created_at
+
     tables:
-      - name: customers
-        description: Raw customers table from ingestion
+      - name: saas_users
+        description: SaaS platform user records from PostgreSQL saas_users table
+        freshness:
+          warn_after: {count: 25, period: hour}
+          error_after: {count: 49, period: hour}
+
+      - name: saas_events
+        description: User activity events from PostgreSQL saas_events table
+        loaded_at_field: occurred_at
+        freshness:
+          warn_after: {count: 25, period: hour}
+          error_after: {count: 49, period: hour}
+
+      - name: saas_subscriptions
+        description: Subscription records from PostgreSQL saas_subscriptions table
+        freshness:
+          warn_after: {count: 25, period: hour}
+          error_after: {count: 49, period: hour}
+
+      - name: shopflow_products_enriched
+        description: >
+          AI-enriched ShopFlow products written by the streaming_enrichment Airflow DAG.
+          Each row adds sentiment, quality_tier, enriched_category, and keywords via Groq.
+        loaded_at_field: enriched_at
+        freshness:
+          warn_after: {count: 1, period: hour}
+          error_after: {count: 3, period: hour}

@@ -1,0 +1,64 @@
+networks:
+  frontend-net:
+    external: true
+    name: docker_frontend-net
+  backend-net:
+    external: true
+    name: docker_backend-net
+
+volumes:
+  mysql-shopflow-data:
+    driver: local
+
+services:
+
+  # ── MySQL 8.0 — ShopFlow CDC source ─────────────────────────────────────
+  mysql-shopflow:
+    image: mysql:8.0
+    container_name: mysql-shopflow
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: shopflow
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --binlog-row-image=FULL
+      --expire-logs-days=7
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+    volumes:
+      - mysql-shopflow-data:/var/lib/mysql
+      - ../../services/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - frontend-net
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── SAP OData API (Flask) ────────────────────────────────────────────────
+  sap-api:
+    build:
+      context: ../../services/sap-api
+      dockerfile: Dockerfile
+    container_name: sap-api
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      FLASK_ENV: production
+      PORT: 5001
+    networks:
+      - frontend-net
+      - backend-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

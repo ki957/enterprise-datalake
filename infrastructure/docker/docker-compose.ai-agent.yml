@@ -1,0 +1,68 @@
+networks:
+  frontend-net:
+    external: true
+    name: docker_frontend-net
+  backend-net:
+    external: true
+    name: docker_backend-net
+
+services:
+
+  ai-agent:
+    build:
+      context: ../../services/ai-agent
+      dockerfile: Dockerfile
+    image: enterprise-datalake/ai-agent:latest
+    container_name: ai-agent
+    restart: unless-stopped
+    ports:
+      - "8502:8502"
+    environment:
+      # Groq LLM
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
+      # ClickHouse — native driver, port 9000 inside Docker
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: "9000"
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_DEFAULT_PASSWORD}
+      CLICKHOUSE_DB: gold
+      # Airflow
+      AIRFLOW_URL: http://airflow-webserver:8080
+      AIRFLOW_USER: admin
+      AIRFLOW_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      # MinIO
+      MINIO_HOST: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      # PostgreSQL (Airflow DB — reused for agent memory)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: airflow
+      # dbt project (mounted below)
+      DBT_PROJECT_DIR: /dbt/datalake_transforms
+      # Airbyte k8s endpoint + OAuth2 credentials
+      AIRBYTE_URL: http://airbyte-abctl-control-plane:80
+      AIRBYTE_CLIENT_ID: ${AIRBYTE_CLIENT_ID}
+      AIRBYTE_CLIENT_SECRET: ${AIRBYTE_CLIENT_SECRET}
+    volumes:
+      # Mount dbt project read-only for model SQL inspection
+      - ../../transformation/dbt/datalake_transforms:/dbt/datalake_transforms:ro
+      # Persist ChromaDB vectors across restarts
+      - ai-agent-chroma:/tmp/chroma_db
+    networks:
+      - frontend-net
+      - backend-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8502/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  ai-agent-chroma:
+    name: docker_ai-agent-chroma

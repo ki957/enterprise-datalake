@@ -1,0 +1,189 @@
+version: 2
+
+# Semantic layer — single source of truth for all metrics.
+# MetricFlow-compatible (dbt-core >= 1.6 with dbt-metricflow installed).
+# These definitions are also read by the AI Analytics agent as a metric registry.
+#
+# Design principle: define once, query everywhere — Superset, Grafana, AI agents
+# all reference the same metric definitions to prevent dashboard drift.
+
+semantic_models:
+  - name: orders
+    description: ShopFlow order facts — one row per order
+    model: ref('fct_orders')
+    defaults:
+      agg_time_dimension: order_date
+    entities:
+      - name: order
+        type: primary
+        expr: order_key
+      - name: customer
+        type: foreign
+        expr: customer_key
+      - name: product
+        type: foreign
+        expr: product_key
+    dimensions:
+      - name: order_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: order_status
+        type: categorical
+    measures:
+      - name: total_orders
+        description: Count of all orders
+        agg: count
+        expr: order_key
+      - name: total_revenue
+        description: Sum of order revenue
+        agg: sum
+        expr: revenue
+      - name: avg_order_value
+        description: Average revenue per order
+        agg: average
+        expr: revenue
+
+  - name: customers
+    description: ShopFlow customer dimension — current SCD2 snapshot
+    model: ref('dim_customers')
+    defaults:
+      agg_time_dimension: created_date
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_key
+    dimensions:
+      - name: created_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: country
+        type: categorical
+      - name: customer_segment
+        type: categorical
+    measures:
+      - name: total_customers
+        description: Count of current active customers
+        agg: count
+        expr: customer_key
+
+  - name: saas_subscriptions
+    description: SaaS subscription MRR facts
+    model: ref('fct_mrr')
+    defaults:
+      agg_time_dimension: subscription_month
+    entities:
+      - name: subscription
+        type: primary
+        expr: user_id
+    dimensions:
+      - name: subscription_month
+        expr: month
+        type: time
+        type_params:
+          time_granularity: month
+      - name: plan
+        type: categorical
+    measures:
+      - name: mrr
+        description: Monthly recurring revenue
+        agg: sum
+        expr: mrr
+      - name: subscriber_count
+        description: Count of active subscribers
+        agg: count_distinct
+        expr: user_id
+
+  - name: saas_events
+    description: SaaS user activity events
+    model: ref('fct_daily_active_users')
+    defaults:
+      agg_time_dimension: event_date
+    entities:
+      - name: user
+        type: primary
+        expr: user_id
+    dimensions:
+      - name: event_date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: daily_active_users
+        description: Distinct users active per day
+        agg: count_distinct
+        expr: user_id
+
+metrics:
+  - name: revenue
+    description: Total ShopFlow order revenue
+    label: Revenue
+    type: simple
+    type_params:
+      measure: total_revenue
+    meta:
+      superset_chart: line
+      grafana_panel: stat
+
+  - name: orders_count
+    description: Total number of orders placed
+    label: Orders
+    type: simple
+    type_params:
+      measure: total_orders
+    meta:
+      superset_chart: bar
+
+  - name: avg_order_value
+    description: Average value per order
+    label: AOV
+    type: simple
+    type_params:
+      measure: avg_order_value
+    meta:
+      superset_chart: stat
+
+  - name: active_customers
+    description: Count of current active customers (is_current = 1)
+    label: Active Customers
+    type: simple
+    type_params:
+      measure: total_customers
+    meta:
+      superset_chart: stat
+
+  - name: mrr
+    description: Monthly recurring revenue from SaaS subscriptions
+    label: MRR
+    type: simple
+    type_params:
+      measure: mrr
+    meta:
+      superset_chart: line
+      grafana_panel: stat
+
+  - name: dau
+    description: Daily active users on the SaaS platform
+    label: DAU
+    type: simple
+    type_params:
+      measure: daily_active_users
+    meta:
+      superset_chart: line
+      grafana_panel: timeseries
+
+  - name: revenue_per_customer
+    description: Average revenue per active customer (cross-domain)
+    label: Revenue per Customer
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: active_customers
+    meta:
+      superset_chart: stat
+
+time_spine_tables:
+  - location: ref('metricflow_time_spine')
+    column_name: date_day
+    grain: day

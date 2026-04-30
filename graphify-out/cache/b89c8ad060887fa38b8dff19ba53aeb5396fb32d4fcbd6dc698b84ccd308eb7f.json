@@ -1,0 +1,1 @@
+{"nodes": [{"id": "tailwind_config", "label": "Tailwind CSS config (design tokens)", "file_type": "code", "source_file": "services/ai-agent-v2/frontend/tailwind.config.js", "source_location": "line 1-118", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

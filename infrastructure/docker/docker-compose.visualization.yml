@@ -5,6 +5,10 @@ networks:
   backend-net:
     external: true
     name: docker_backend-net
+  # Required for Superset → Keycloak SSO (server-side token exchange)
+  keycloak-net:
+    external: true
+    name: docker_keycloak-net
 
 volumes:
   superset-data:
@@ -20,7 +24,7 @@ services:
     image: redis:7.2-alpine
     container_name: redis
     restart: unless-stopped
-    command: redis-server --requirepass Redis@2024
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis-data:/data
     networks:
@@ -33,13 +37,27 @@ services:
     ports:
       - "8088:8088"
     environment:
-      SUPERSET_SECRET_KEY: SupersetSecret@2024
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
       - superset-data:/app/superset_home
+      # Keycloak SSO config — mounted as a Python config file
+      - ../../infrastructure/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
     depends_on:
       - redis
     networks:
       - frontend-net
       - backend-net
-    command: bash -c "pip install clickhouse-sqlalchemy==0.2.4 --quiet && superset db upgrade && superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password Superset@2024 && superset init && superset run -h 0.0.0.0 -p 8088"
+      - keycloak-net
+    command: >
+      bash -c "
+        pip install clickhouse-sqlalchemy==0.2.4 --quiet &&
+        superset db upgrade &&
+        superset fab create-admin
+          --username ${SUPERSET_ADMIN_USER}
+          --firstname Admin --lastname User
+          --email admin@example.com
+          --password ${SUPERSET_ADMIN_PASSWORD} &&
+        superset init &&
+        superset run -h 0.0.0.0 -p 8088
+      "

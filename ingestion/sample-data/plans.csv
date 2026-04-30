@@ -1,5 +1,0 @@
-plan_id,plan_name,price_monthly,price_annual,max_users,max_projects,features
-1,Free,0,0,1,3,basic_analytics
-2,Starter,29,290,5,10,"basic_analytics,exports"
-3,Pro,99,990,20,50,"advanced_analytics,exports,api_access"
-4,Enterprise,499,4990,unlimited,unlimited,"all_features,sso,dedicated_support"

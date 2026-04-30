@@ -1,0 +1,14 @@
+<clickhouse>
+    <!-- Expose Prometheus metrics on a dedicated port (9363).
+         Grafana/Prometheus scrape: http://clickhouse:9363/metrics
+         This is separate from the HTTP interface (8123) to avoid polluting
+         query endpoint logs with scrape traffic. -->
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+        <status_info>true</status_info>
+    </prometheus>
+</clickhouse>

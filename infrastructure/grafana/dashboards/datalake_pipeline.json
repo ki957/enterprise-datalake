@@ -1,0 +1,237 @@
+{
+  "uid": "datalake-pipeline",
+  "title": "Enterprise Data Lake — Pipeline Health",
+  "tags": ["datalake", "pipeline"],
+  "timezone": "UTC",
+  "schemaVersion": 36,
+  "refresh": "1m",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "ClickHouse — Running Queries",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "ClickHouseMetrics_Query",
+        "legendFormat": "Active queries",
+        "datasource": "Prometheus"
+      }],
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 5},
+            {"color": "red", "value": 15}
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "ClickHouse — Memory (GB)",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "ClickHouseAsyncMetrics_MemoryResident / 1e9",
+        "legendFormat": "Resident memory GB",
+        "datasource": "Prometheus"
+      }],
+      "options": {
+        "colorMode": "background",
+        "unit": "short",
+        "thresholds": {
+          "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 3},
+            {"color": "red", "value": 4}
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "MinIO — Disk Used %",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "100 * minio_node_disk_used_bytes / minio_node_disk_total_bytes",
+        "legendFormat": "Disk %",
+        "datasource": "Prometheus"
+      }],
+      "options": {
+        "colorMode": "background",
+        "unit": "percent",
+        "thresholds": {
+          "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 70},
+            {"color": "red", "value": 85}
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Prometheus Targets Up",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "count(up == 1)",
+        "legendFormat": "Targets up",
+        "datasource": "Prometheus"
+      }],
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 2},
+            {"color": "green", "value": 3}
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Prometheus Targets Down",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "count(up == 0) or vector(0)",
+        "legendFormat": "Targets down",
+        "datasource": "Prometheus"
+      }],
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            {"color": "green", "value": null},
+            {"color": "red", "value": 1}
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "ClickHouse — Active Queries Over Time",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "ClickHouseMetrics_Query",
+          "legendFormat": "Active queries",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "ClickHouseMetrics_Merge",
+          "legendFormat": "Active merges",
+          "datasource": "Prometheus"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"lineWidth": 2},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 15}
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "ClickHouse — Memory Usage (GB)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "ClickHouseAsyncMetrics_MemoryResident / 1e9",
+        "legendFormat": "Resident memory GB",
+        "datasource": "Prometheus"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"lineWidth": 2}
+        }
+      }
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "MinIO — Disk Usage",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "minio_node_disk_used_bytes / 1e9",
+          "legendFormat": "Used GB",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "minio_node_disk_free_bytes / 1e9",
+          "legendFormat": "Free GB",
+          "datasource": "Prometheus"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"lineWidth": 2}
+        }
+      }
+    },
+
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "MinIO — S3 API Request Rate",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(minio_s3_requests_total[5m])",
+          "legendFormat": "{{ api }} {{ type }}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {"lineWidth": 2}
+        }
+      }
+    },
+
+    {
+      "id": 30,
+      "type": "table",
+      "title": "Prometheus Scrape Targets Status",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+      "targets": [{
+        "expr": "up",
+        "legendFormat": "{{job}} — {{instance}}",
+        "instant": true,
+        "datasource": "Prometheus"
+      }],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {
+          "renameByName": {"Value": "Status (1=up)"}
+        }}
+      ]
+    }
+
+  ]
+}

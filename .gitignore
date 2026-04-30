@@ -1,8 +1,45 @@
+# Secrets — never commit real credentials
 .env
+.env.local
+.env.*.local
+
+# Python
 *.pyc
 __pycache__/
+
+# dbt
 .dbt/
 dbt_packages/
 target/
+
+# Logs
 logs/
 *.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+
+# Python virtualenvs
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js
+node_modules/

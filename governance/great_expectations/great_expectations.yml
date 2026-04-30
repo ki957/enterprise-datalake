@@ -1,0 +1,60 @@
+# Great Expectations configuration for Enterprise Data Lake
+# Datasource: ClickHouse via SQLAlchemy (clickhouse-sqlalchemy)
+# Run checkpoints from the quality_dags/data_quality_suite.py Airflow DAG.
+
+config_version: 3.0
+
+datasources:
+  clickhouse_gold:
+    class_name: Datasource
+    execution_engine:
+      class_name: SqlAlchemyExecutionEngine
+      # CLICKHOUSE_GE_HOST / CLICKHOUSE_GE_NATIVE_PORT allow CI to point at the
+      # test container (localhost:19000) without touching production config.
+      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST:-localhost}:${CLICKHOUSE_GE_NATIVE_PORT:-9002}/gold"
+    data_connectors:
+      default_inferred_data_connector_name:
+        class_name: InferredAssetSqlDataConnector
+        include_schema_name: true
+
+  clickhouse_staging:
+    class_name: Datasource
+    execution_engine:
+      class_name: SqlAlchemyExecutionEngine
+      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST:-localhost}:${CLICKHOUSE_GE_NATIVE_PORT:-9002}/staging"
+    data_connectors:
+      default_inferred_data_connector_name:
+        class_name: InferredAssetSqlDataConnector
+        include_schema_name: true
+
+stores:
+  expectations_store:
+    class_name: ExpectationsStore
+    store_backend:
+      class_name: TupleFilesystemStoreBackend
+      base_directory: expectations/
+
+  validations_store:
+    class_name: ValidationsStore
+    store_backend:
+      class_name: TupleFilesystemStoreBackend
+      base_directory: uncommitted/validations/
+
+  evaluation_parameter_store:
+    class_name: EvaluationParameterStore
+
+expectations_store_name: expectations_store
+validations_store_name: validations_store
+evaluation_parameter_store_name: evaluation_parameter_store
+
+data_docs_sites:
+  local_site:
+    class_name: SiteBuilder
+    store_backend:
+      class_name: TupleFilesystemStoreBackend
+      base_directory: uncommitted/data_docs/local_site/
+    site_index_builder:
+      class_name: DefaultSiteIndexBuilder
+
+anonymous_usage_statistics:
+  enabled: false

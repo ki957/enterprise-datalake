@@ -1,0 +1,82 @@
+groups:
+
+  # ── ClickHouse health ────────────────────────────────────────────────────────
+  - name: clickhouse
+    rules:
+      - alert: ClickHouseDown
+        expr: up{job="clickhouse"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ClickHouse is unreachable"
+          description: "Prometheus cannot scrape ClickHouse metrics. Check container status."
+
+      - alert: ClickHouseHighConcurrentQueries
+        expr: ClickHouseMetrics_Query > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse has high concurrent query count"
+          description: "More than 10 queries running concurrently for over 5 minutes."
+
+      - alert: ClickHouseHighMemoryUsage
+        expr: ClickHouseAsyncMetrics_MemoryResident > 4e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse memory usage high"
+          description: "ClickHouse resident memory exceeds 4 GB. Consider query optimization."
+
+  # ── MinIO storage ────────────────────────────────────────────────────────────
+  - name: minio
+    rules:
+      - alert: MinIODown
+        expr: up{job="minio"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MinIO is unreachable"
+          description: "Prometheus cannot scrape MinIO metrics. Landing zone unavailable."
+
+      - alert: MinIODiskUsageHigh
+        expr: minio_node_disk_used_bytes / minio_node_disk_total_bytes > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO disk usage above 80%"
+          description: "MinIO disk utilization is {{ $value | humanizePercentage }}. Plan capacity expansion."
+
+      - alert: MinIODiskUsageCritical
+        expr: minio_node_disk_used_bytes / minio_node_disk_total_bytes > 0.90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MinIO disk usage above 90%"
+          description: "MinIO disk is nearly full ({{ $value | humanizePercentage }}). Immediate action required."
+
+  # ── Prometheus self-health ───────────────────────────────────────────────────
+  - name: prometheus
+    rules:
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been unreachable for 5 minutes."
+
+      - alert: PrometheusScrapeDurationHigh
+        expr: scrape_duration_seconds{job!="prometheus"} > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow Prometheus scrape on {{ $labels.job }}"
+          description: "Scrape duration is {{ $value | humanizeDuration }} for {{ $labels.instance }}."

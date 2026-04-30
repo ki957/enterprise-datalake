@@ -23,34 +23,60 @@ services:
     ports:
       - "8123:8123"
       - "9002:9000"
+      - "9363:9363"   # Prometheus metrics endpoint
     environment:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: Click@2024
+      CLICKHOUSE_USER: ${CLICKHOUSE_DEFAULT_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_DEFAULT_PASSWORD}
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ../../infrastructure/clickhouse/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
     networks:
       - backend-net
       - frontend-net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   spark-master:
     image: apache/spark:3.5.0
     container_name: spark-master
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"   # bind to localhost only — UI not exposed on 0.0.0.0
       - "7077:7077"
     environment:
       SPARK_NO_DAEMONIZE: true
+      # ACL enforcement: only users listed in spark.admin.acls can view all jobs/stages.
+      # For full auth, place an authenticated reverse proxy in front of port 8081.
+      SPARK_MASTER_OPTS: >-
+        -Dspark.ui.acls.enable=true
+        -Dspark.acls.enable=true
+        -Dspark.admin.acls=admin
+        -Dspark.ui.reverseProxy=true
     volumes:
       - spark-data:/opt/spark/work
     networks:
       - backend-net
       - frontend-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
 
   spark-worker:
@@ -59,10 +85,28 @@ services:
     restart: unless-stopped
     environment:
       SPARK_NO_DAEMONIZE: true
+      SPARK_WORKER_MEMORY: 1536m
+      SPARK_WORKER_CORES: "2"
     volumes:
       - spark-data:/opt/spark/work
     depends_on:
       - spark-master
     networks:
       - backend-net
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: "2.0"
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+
+  dbt-docs:
+    image: nginx:alpine
+    container_name: dbt-docs
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    volumes:
+      - ../../transformation/dbt/datalake_transforms/target:/usr/share/nginx/html:ro
+    networks:
+      - frontend-net

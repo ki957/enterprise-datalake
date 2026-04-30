@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Fonts fallback (loaded in index.html) ─────────────────────────── */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #0A0F1E;
+    color: #E8EAF0;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* prevent rubber-band scroll on iOS from exposing white background */
+    overscroll-behavior: none;
+  }
+
+  /* Safe area insets — iPhone notch / Dynamic Island */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  ::selection {
+    background: rgba(91, 200, 212, 0.25);
+    color: #E8EAF0;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(91, 200, 212, 0.2);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(91, 200, 212, 0.4);
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+}
+
+/* ── Component utilities ───────────────────────────────────────────────────── */
+@layer components {
+
+  /* Glass card — frosted dark surface */
+  .glass {
+    background: rgba(15, 22, 41, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(30, 42, 69, 0.8);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  /* Elevated glass — slightly lighter */
+  .glass-elevated {
+    background: rgba(20, 30, 53, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(30, 42, 69, 0.6);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+
+  /* Matte surface — no blur, solid dark */
+  .surface {
+    background: #0F1629;
+    border: 1px solid #1E2A45;
+  }
+
+  /* Input field */
+  .input-field {
+    background: #141E35;
+    border: 1px solid #1E2A45;
+    border-radius: 12px;
+    color: #E8EAF0;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    outline: none;
+  }
+  .input-field:focus {
+    border-color: rgba(91, 200, 212, 0.4);
+    box-shadow: 0 0 0 3px rgba(91, 200, 212, 0.08);
+  }
+  .input-field::placeholder { color: #3A4A5C; }
+
+  /* Agent chip pill */
+  .agent-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 99px;
+    border: 1px solid #1E2A45;
+    background: transparent;
+    color: #8899AA;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .agent-chip:hover {
+    background: rgba(30, 42, 69, 0.6);
+    color: #E8EAF0;
+  }
+  .agent-chip.active {
+    background: rgba(91, 200, 212, 0.06);
+    color: #7DD4DC;
+    border-color: rgba(91, 200, 212, 0.3);
+  }
+
+  /* Code block inside message */
+  .code-block {
+    background: #070C18;
+    border: 1px solid #1E2A45;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: #C8D8E8;
+  }
+
+  /* Markdown table inside message */
+  .md-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .md-table th {
+    background: #141E35;
+    color: #7DD4DC;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1E2A45;
+    text-align: left;
+  }
+  .md-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(30,42,69,0.5);
+    color: #C8D8E8;
+  }
+  .md-table tr:last-child td { border-bottom: none; }
+  .md-table tr:hover td { background: rgba(30,42,69,0.3); }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #7DD4DC 0%, #9B8FC4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Status dot */
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.up    { background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+  .status-dot.down  { background: #EF4444; }
+  .status-dot.unknown { background: #3A4A5C; }
+
+  /* Thin divider */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #1E2A45, transparent);
+  }
+
+  /* Thinking dots */
+  .thinking-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    animation: thinkPulse 1.4s ease-in-out infinite;
+  }
+  .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes thinkPulse {
+    0%, 60%, 100% { opacity: 0.2; transform: scale(0.85); }
+    30%           { opacity: 1;   transform: scale(1.1); }
+  }
+
+  /* Streaming cursor */
+  .stream-cursor::after {
+    content: '▊';
+    animation: blink 0.9s step-start infinite;
+    color: #5BC8D4;
+    font-size: 0.85em;
+    margin-left: 1px;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+  }
+
+  /* Mobile bottom drawer */
+  .drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 40;
+    animation: fadeIn 0.2s ease;
+  }
+  .drawer-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #0F1629;
+    border-top: 1px solid #1E2A45;
+    border-radius: 18px 18px 0 0;
+    z-index: 50;
+    animation: slideUpDrawer 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  @keyframes slideUpDrawer {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0);   }
+  }
+}
+
+/* ── Markdown prose overrides inside message bubbles ──────────────────────── */
+.prose-message {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #C8D8E8;
+}
+.prose-message h1, .prose-message h2, .prose-message h3 {
+  color: #E8EAF0;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.55em;
+  letter-spacing: -0.01em;
+}
+.prose-message h1 { font-size: 17px; }
+.prose-message h2 { font-size: 15px; border-bottom: 1px solid rgba(30,42,69,0.7); padding-bottom: 0.3em; }
+.prose-message h3 { font-size: 13.5px; color: #A8B8CC; }
+/* First heading gets no top margin — it's already inside the bubble */
+.prose-message > h1:first-child,
+.prose-message > h2:first-child,
+.prose-message > h3:first-child { margin-top: 0.2em; }
+.prose-message p  { margin: 0.65em 0; }
+.prose-message ul, .prose-message ol {
+  padding-left: 1.5em;
+  margin: 0.65em 0;
+}
+.prose-message li {
+  margin: 0.45em 0;
+  line-height: 1.7;
+}
+.prose-message li > ul,
+.prose-message li > ol { margin: 0.3em 0; }
+.prose-message strong { color: #E8EAF0; font-weight: 700; }
+.prose-message em    { color: #9B8FC4; }
+.prose-message a     { color: #7DD4DC; text-decoration: underline; text-decoration-style: dotted; }
+.prose-message code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: rgba(91,200,212,0.1);
+  color: #7DD4DC;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(91,200,212,0.15);
+}
+/* Blockquote = "Bottom line / key insight" callout */
+.prose-message blockquote {
+  border-left: 3px solid #5BC8D4;
+  margin: 1em 0;
+  padding: 0.55em 0.9em 0.55em 1em;
+  background: rgba(91,200,212,0.06);
+  border-radius: 0 6px 6px 0;
+  color: #D8E8F0;
+}
+.prose-message blockquote p { margin: 0; }
+/* HR = visual section break */
+.prose-message hr {
+  border: none;
+  border-top: 1px solid rgba(30,42,69,0.8);
+  margin: 1.2em 0;
+}

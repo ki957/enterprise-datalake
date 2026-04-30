@@ -1,0 +1,61 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  scrape_timeout:      10s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+scrape_configs:
+
+  # ── Prometheus self-monitoring ───────────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── ClickHouse metrics ───────────────────────────────────────────────────────
+  # ClickHouse exposes Prometheus metrics on port 9363 (config.d/prometheus.xml).
+  # Port 8123 is the HTTP query interface — metrics are on the dedicated port.
+  - job_name: clickhouse
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['clickhouse:9363']
+    scrape_interval: 30s
+
+  # ── MinIO metrics ────────────────────────────────────────────────────────────
+  # MinIO exposes Prometheus metrics at /minio/v2/metrics/cluster
+  - job_name: minio
+    metrics_path: /minio/v2/metrics/cluster
+    scheme: http
+    static_configs:
+      - targets: ['minio:9000']
+    scrape_interval: 60s
+
+  # ── Airflow StatsD metrics via Prometheus exporter ───────────────────────────
+  # Airflow → StatsD → statsd-exporter → Prometheus
+  # TODO: add statsd-exporter container to governance compose and set
+  # AIRFLOW__METRICS__STATSD_ON=True + AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
+  # The Airflow webserver does not expose /metrics natively — scraping it directly
+  # returns 404. Commented out until the exporter is deployed.
+  # - job_name: airflow
+  #   static_configs:
+  #     - targets: ['statsd-exporter:9102']
+  #   metrics_path: /metrics
+  #   scrape_interval: 30s
+
+  # ── PostgreSQL exporter ───────────────────────────────────────────────────────
+  # Uncomment when postgres-exporter container is added to serving compose.
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # ── Node exporter (host metrics) ─────────────────────────────────────────────
+  # Uncomment when node-exporter is added to base compose.
+  # - job_name: node
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']

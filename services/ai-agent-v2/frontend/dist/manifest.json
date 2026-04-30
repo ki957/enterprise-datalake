@@ -1,0 +1,29 @@
+{
+  "name": "Codincity DataLake AI",
+  "short_name": "DataLake AI",
+  "description": "Agentic big data engineering assistant — 7 AI agents for your data lake",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0F1E",
+  "theme_color": "#0A0F1E",
+  "orientation": "any",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Query ClickHouse",
+      "short_name": "Query",
+      "description": "Ask the Insight agent a data question",
+      "url": "/?agent=insight"
+    },
+    {
+      "name": "Cost Dashboard",
+      "short_name": "Costs",
+      "description": "View token spend and agent costs",
+      "url": "/?costs=1"
+    }
+  ]
+}

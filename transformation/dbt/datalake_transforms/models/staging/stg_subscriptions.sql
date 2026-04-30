@@ -4,11 +4,10 @@ SELECT
     id AS subscription_id,
     user_id,
     lower(plan) AS plan,
-    amount AS mrr,
+    mrr,
     billing_cycle,
     started_at,
-    expires_at,
-    lower(status) AS status,
-    created_at
+    ended_at,
+    lower(status) AS status
 FROM raw.saas_subscriptions
 WHERE user_id IS NOT NULL

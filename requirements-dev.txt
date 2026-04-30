@@ -1,0 +1,7 @@
+# Development & testing dependencies
+pytest==8.2.0
+pytest-mock==3.14.0
+faker==25.0.0
+mysql-connector-python==8.4.0
+psycopg2-binary==2.9.9
+apache-airflow==2.8.0

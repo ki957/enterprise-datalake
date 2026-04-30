@@ -1,0 +1,81 @@
+services:
+  # ── Kafka (KRaft mode — no Zookeeper) ────────────────────────────────────────
+  # apache/kafka:3.7.0 — official Apache image, KRaft mode, no Zookeeper.
+  # Heap capped at 256MB to stay within ~3GB headroom on this host.
+  # CLUSTER_ID is a fixed base64 UUID — required by apache/kafka for KRaft init.
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      # KRaft — no Zookeeper (apache/kafka uses KAFKA_ prefix directly)
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: "168"
+      KAFKA_LOG_RETENTION_BYTES: "536870912"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms128m"
+      # Fixed cluster ID for reproducible restarts — base64(UUID)
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg=="
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Kafka Connect with Debezium MySQL connector ───────────────────────────────
+  # Heap capped at 512MB. Contains: debezium-connector-mysql plugin.
+  kafka-connect:
+    image: debezium/connect:2.6
+    container_name: kafka-connect
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:9092"
+      GROUP_ID: "datalake-connect"
+      CONFIG_STORAGE_TOPIC: "connect-configs"
+      OFFSET_STORAGE_TOPIC: "connect-offsets"
+      STATUS_STORAGE_TOPIC: "connect-status"
+      CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_HEAP_OPTS: "-Xmx512m -Xms256m"
+      # Reduce log noise in dev
+      LOG_LEVEL: "WARN"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+
+networks:
+  backend-net:
+    external: true
+    name: docker_backend-net

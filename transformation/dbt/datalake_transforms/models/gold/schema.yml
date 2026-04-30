@@ -1,0 +1,194 @@
+version: 2
+
+models:
+
+  # ── Dimensions ──────────────────────────────────────────────────────────
+
+  - name: dim_customers
+    description: >
+      Customer dimension with SCD Type 2 structure.
+      valid_from/valid_to/is_current track changes in email, segment, country.
+      Surrogate key = MD5(customer_id).
+    columns:
+      - name: customer_key
+        description: MD5 surrogate key
+        tests:
+          - not_null
+      - name: customer_id
+        description: Source PK from MySQL
+        tests:
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: segment
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['B2B', 'B2C', 'VIP']
+      - name: country
+        tests:
+          - not_null
+      - name: valid_from
+        tests:
+          - not_null
+      - name: valid_to
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+
+  - name: dim_products
+    description: Product dimension with price tier classification and stock status.
+    columns:
+      - name: product_key
+        description: MD5 surrogate key
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: name
+        tests:
+          - not_null
+      - name: category
+        tests:
+          - not_null
+      - name: price
+        tests:
+          - not_null
+      - name: price_tier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Budget', 'Mid-range', 'Premium', 'Luxury']
+      - name: sku
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_vendors
+    description: Vendor dimension from SAP OData API.
+    columns:
+      - name: vendor_key
+        description: MD5 surrogate key
+        tests:
+          - unique
+          - not_null
+      - name: vendor_id
+        tests:
+          - unique
+          - not_null
+      - name: name
+        tests:
+          - not_null
+      - name: category
+        tests:
+          - not_null
+      - name: payment_terms
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['NET30', 'NET60', 'NET90', 'IMMEDIATE']
+
+  # ── Facts ────────────────────────────────────────────────────────────────
+
+  - name: fct_orders
+    description: >
+      Order fact table enriched with customer and product dimensions.
+      Grain: one row per order.
+    columns:
+      - name: order_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: customer_key
+        description: FK to dim_customers
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_key
+      - name: product_key
+        description: FK to dim_products
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_products')
+              field: product_key
+      - name: amount
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pending', 'completed', 'cancelled']
+      - name: order_date
+        tests:
+          - not_null
+      - name: customer_segment
+        tests:
+          - accepted_values:
+              values: ['B2B', 'B2C', 'VIP']
+
+  - name: fct_procurement
+    description: >
+      Procurement fact table enriched with vendor dimension.
+      Grain: one row per purchase order.
+    columns:
+      - name: po_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: vendor_key
+        description: FK to dim_vendors
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_vendors')
+              field: vendor_key
+      - name: amount
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['OPEN', 'APPROVED', 'RECEIVED', 'CLOSED', 'CANCELLED']
+      - name: currency
+        tests:
+          - not_null
+
+  - name: fct_reviews
+    description: >
+      Product review fact table mapped from JSONPlaceholder posts.
+      Grain: one row per review.
+    columns:
+      - name: review_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: product_key
+        description: FK to dim_products
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_products')
+              field: product_key
+      - name: user_id
+        tests:
+          - not_null
+      - name: rating
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]

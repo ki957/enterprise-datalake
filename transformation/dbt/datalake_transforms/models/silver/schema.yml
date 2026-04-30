@@ -1,0 +1,147 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: Cleaned customer records from MySQL ShopFlow CDC. Email lowercased, nulls cleaned, segment validated.
+    columns:
+      - name: customer_id
+        description: Surrogate PK from MySQL
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: Lowercase, trimmed email address
+        tests:
+          - unique
+          - not_null
+      - name: segment
+        description: Customer segment
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['B2B', 'B2C', 'VIP']
+      - name: country
+        tests:
+          - not_null
+      - name: created_at
+        tests:
+          - not_null
+
+  - name: stg_orders
+    description: Cleaned order records from MySQL ShopFlow. Amount cast to Decimal, status validated.
+    columns:
+      - name: order_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: amount
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pending', 'completed', 'cancelled']
+      - name: order_date
+        tests:
+          - not_null
+
+  - name: stg_products
+    description: Cleaned product catalog from MySQL ShopFlow. Price cast to Decimal, price tier added.
+    columns:
+      - name: product_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: sku
+        tests:
+          - unique
+          - not_null
+      - name: price
+        tests:
+          - not_null
+      - name: price_tier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Budget', 'Mid-range', 'Premium', 'Luxury']
+      - name: category
+        tests:
+          - not_null
+
+  - name: stg_vendors
+    description: Cleaned vendor master data from SAP OData API.
+    columns:
+      - name: vendor_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: name
+        tests:
+          - not_null
+      - name: category
+        tests:
+          - not_null
+      - name: payment_terms
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['NET30', 'NET60', 'NET90', 'IMMEDIATE']
+
+  - name: stg_purchase_orders
+    description: Cleaned purchase orders from SAP OData API. Amount cast to Decimal, lead time calculated.
+    columns:
+      - name: po_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: vendor_id
+        description: FK to stg_vendors
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_vendors')
+              field: vendor_id
+      - name: amount
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['OPEN', 'APPROVED', 'RECEIVED', 'CLOSED', 'CANCELLED']
+      - name: currency
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['USD', 'EUR', 'GBP', 'INR']
+
+  - name: stg_reviews
+    description: Product reviews mapped from JSONPlaceholder posts. Rating simulated from post_id.
+    columns:
+      - name: review_id
+        description: PK (post_id from JSONPlaceholder)
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: rating
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]

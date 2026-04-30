@@ -18,6 +18,7 @@ volumes:
   airflow-data:
   postgres-data:
   vault-data:
+  vault-logs:    # audit log volume — mounted by docker-compose.security.yml
   keycloak-data:
   prometheus-data:
   grafana-data:

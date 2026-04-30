@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: dim_users
+    description: SaaS user dimension with current plan and MRR.
+    columns:
+      - name: user_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: plan
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise', 'free']
+      - name: status
+        tests:
+          - not_null
+      - name: mrr
+        tests:
+          - not_null
+      - name: country
+        tests:
+          - not_null
+
+  - name: fct_daily_active_users
+    description: Daily active user counts and event breakdowns. Grain — one row per day.
+    columns:
+      - name: event_date
+        description: PK — calendar date
+        tests:
+          - unique
+          - not_null
+      - name: dau
+        tests:
+          - not_null
+      - name: total_events
+        tests:
+          - not_null
+
+  - name: fct_event_funnel
+    description: Aggregated event counts by type. Grain — one row per event_type.
+    columns:
+      - name: event_type
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: total_events
+        tests:
+          - not_null
+      - name: unique_users
+        tests:
+          - not_null
+
+  - name: fct_mrr
+    description: MRR aggregated by plan and billing cycle. Grain — one row per plan+billing_cycle.
+    columns:
+      - name: plan
+        tests:
+          - not_null
+      - name: billing_cycle
+        tests:
+          - not_null
+      - name: total_mrr
+        tests:
+          - not_null
+      - name: total_subscribers
+        tests:
+          - not_null

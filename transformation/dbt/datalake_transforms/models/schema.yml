@@ -1,9 +1,2 @@
 version: 2
-
-models:
-  - name: raw_customers
-    description: Raw customers data
-  - name: stg_customers
-    description: Cleaned and staged customers
-  - name: dim_customers
-    description: Customer dimension table - business ready
+# Top-level schema.yml — kept minimal; per-layer schemas live in silver/ and gold/ subdirectories.

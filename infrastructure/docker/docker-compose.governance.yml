@@ -14,32 +14,98 @@ volumes:
     external: true
     name: docker_airflow-data
 
+x-airflow-common: &airflow-common
+  image: enterprise-datalake/airflow:2.8.0-dbt
+  environment:
+    # Note: @ in the password must be URL-encoded as %40
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+    # Load DAGs directly from the repo mount — picks up all subdirectory DAGs automatically
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/datalake/orchestration/airflow/dags
+    # dbt profile env-vars (used in profiles.yml template)
+    DBT_CLICKHOUSE_HOST: clickhouse
+    DBT_CLICKHOUSE_PORT: "8123"
+    DBT_CLICKHOUSE_USER: ${CLICKHOUSE_DEFAULT_USER:-default}
+    DBT_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_DEFAULT_PASSWORD}
+    DBT_CLICKHOUSE_SCHEMA: gold
+    # Airbyte connection IDs (Phase 2)
+    AIRBYTE_URL: "http://airbyte-abctl-control-plane:80"
+    AIRBYTE_CLIENT_ID: "4ef6ae1b-2abb-479c-8476-f46a3d4e1895"
+    AIRBYTE_CLIENT_SECRET: "${AIRBYTE_CLIENT_SECRET}"
+    AIRBYTE_MYSQL_CONN_ID: "9993f6c9-040d-47bb-830b-31de9137a477"
+    # MinIO
+    MINIO_ENDPOINT: "minio:9000"
+    MINIO_ACCESS_KEY: admin
+    MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD}"
+    # MySQL (ShopFlow CDC source — schema_evolution + streaming_enrichment DAGs)
+    MYSQL_HOST: mysql-shopflow
+    MYSQL_PORT: "3306"
+    MYSQL_USER: root
+    MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+    # Groq (streaming_enrichment AI enrichment)
+    GROQ_API_KEY: "${GROQ_API_KEY}"
+    # Kafka (streaming_enrichment consumer)
+    KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    # PostgreSQL (SaaS source)
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB}
+    # SAP + REST ingestion script location (mounted below)
+    DATALAKE_HOME: /opt/datalake
+    # Vault secrets backend — switch to VaultBackend by running `make setup-vault`
+    # and setting VAULT_APPROLE_ROLE_ID + VAULT_APPROLE_SECRET_ID in .env.
+    # Default: environment variables backend (works without Vault running).
+    AIRFLOW__SECRETS__BACKEND: airflow.secrets.environment_variables.EnvironmentVariablesBackend
+  volumes:
+    - airflow-data:/opt/airflow
+    - /home/kishore/enterprise-datalake:/opt/datalake:ro
+
 services:
 
   airflow-init:
-    image: apache/airflow:2.8.0
+    <<: *airflow-common
     container_name: airflow-init
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
-      AIRFLOW__CORE__FERNET_KEY: l82azX1LorH_j3gdKvODS19mYePRjBvmjfqBIzhFvos=
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    command: bash -c "airflow db migrate && airflow users create --username admin --password Airflow@2024 --firstname Admin --lastname User --role Admin --email admin@example.com"
+    command:
+      - bash
+      - -c
+      - |
+        pip install dbt-clickhouse==1.10.0 minio pyarrow requests psycopg2-binary apache-airflow-providers-hashicorp==3.6.0 -q &&
+        airflow db migrate &&
+        airflow users create --username admin --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --firstname Admin --lastname User --role Admin \
+          --email admin@example.com || true &&
+        mkdir -p /home/airflow/.dbt &&
+        python3 -c "
+        content = '''datalake_transforms:
+          target: dev
+          outputs:
+            dev:
+              type: clickhouse
+              schema: gold
+              host: clickhouse
+              port: 8123
+              user: default
+              password: ${DBT_CLICKHOUSE_PASSWORD}
+              secure: false
+              threads: 4
+        '''
+        open('/home/airflow/.dbt/profiles.yml','w').write(content)
+        import shutil; shutil.copy('/home/airflow/.dbt/profiles.yml','/opt/airflow/dbt_profiles.yml')
+        "
     networks:
       - backend-net
 
   airflow-webserver:
-    image: apache/airflow:2.8.0
+    <<: *airflow-common
     container_name: airflow-webserver
     restart: unless-stopped
     ports:
       - "8080:8080"
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
-      AIRFLOW__CORE__FERNET_KEY: l82azX1LorH_j3gdKvODS19mYePRjBvmjfqBIzhFvos=
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__WEBSERVER__SECRET_KEY: Airflow@2024secret
-    volumes:
-      - airflow-data:/opt/airflow
     depends_on:
       - airflow-init
     networks:
@@ -48,18 +114,13 @@ services:
     command: webserver
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0
+    <<: *airflow-common
     container_name: airflow-scheduler
     restart: unless-stopped
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:Postgres%402024@postgres:5432/airflow
-      AIRFLOW__CORE__FERNET_KEY: l82azX1LorH_j3gdKvODS19mYePRjBvmjfqBIzhFvos=
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    volumes:
-      - airflow-data:/opt/airflow
     depends_on:
       - airflow-init
     networks:
+      - frontend-net
       - backend-net
       - management-net
     command: scheduler

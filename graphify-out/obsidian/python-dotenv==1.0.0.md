@@ -1,0 +1,16 @@
+---
+source_file: "services/ai-agent/requirements.txt"
+type: "document"
+community: "AI Agent Memory & Cost System"
+tags:
+  - graphify/document
+  - graphify/INFERRED
+  - community/AI_Agent_Memory_&_Cost_System
+---
+
+# python-dotenv==1.0.0
+
+## Connections
+- [[AI Layer (LangGraph Multi-Agent System)]] - `references` [INFERRED]
+
+#graphify/document #graphify/INFERRED #community/AI_Agent_Memory_&_Cost_System

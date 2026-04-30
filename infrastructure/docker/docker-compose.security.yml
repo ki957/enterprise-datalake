@@ -13,6 +13,9 @@ volumes:
   vault-data:
     external: true
     name: docker_vault-data
+  vault-logs:
+    external: true
+    name: docker_vault-logs
   keycloak-data:
     external: true
     name: docker_keycloak-data
@@ -32,6 +35,7 @@ services:
       - IPC_LOCK
     volumes:
       - vault-data:/vault/data
+      - vault-logs:/vault/logs   # audit log persists across restarts (see make setup-vault)
     networks:
       - management-net
       - keycloak-net
