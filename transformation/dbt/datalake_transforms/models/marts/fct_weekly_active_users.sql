@@ -3,4 +3,35 @@
 
 {{ config(schema='gold', materialized='table', engine='MergeTree()', order_by='tuple()') }}
 
-WITH daily_active_users AS ( SELECT user_id, toDate(created_at) AS day FROM {{ ref('stg_subscriptions') }} GROUP BY user_id, toDate(created_at) ), user_cohorts AS ( SELECT user_id, min(day) AS cohort_day FROM daily_active_users GROUP BY user_id ) SELECT d.user_id, d.day, uc.cohort_day, COUNT(DISTINCT d.user_id) OVER ( PARTITION BY uc.cohort_day ORDER BY d.day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW ) AS active_users_7d FROM daily_active_users d JOIN user_cohorts uc ON d.user_id = uc.user_id AND d.day >= uc.cohort_day ORDER BY uc.cohort_day, d.day
+WITH daily_active_users AS (
+    SELECT
+        user_id,
+        toDate(started_at) AS day
+    FROM {{ ref('stg_subscriptions') }}
+    GROUP BY user_id, toDate(started_at)
+),
+user_cohorts AS (
+    SELECT user_id, min(day) AS cohort_day
+    FROM daily_active_users
+    GROUP BY user_id
+),
+joined AS (
+    SELECT
+        d.user_id,
+        d.day,
+        uc.cohort_day
+    FROM daily_active_users d
+    JOIN user_cohorts uc ON d.user_id = uc.user_id
+    WHERE d.day >= uc.cohort_day
+)
+SELECT
+    user_id,
+    day,
+    cohort_day,
+    COUNT(DISTINCT user_id) OVER (
+        PARTITION BY cohort_day
+        ORDER BY day
+        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+    ) AS active_users_7d
+FROM joined
+ORDER BY cohort_day, day

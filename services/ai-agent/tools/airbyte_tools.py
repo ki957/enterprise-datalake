@@ -127,8 +127,9 @@ def _no_credentials_msg() -> str:
 
 
 @tool
-def list_airbyte_connections() -> str:
+def list_airbyte_connections(max_connections: str = "20") -> str:
     """List all Airbyte connections with status AND latest sync job details (records, duration, last sync time).
+    max_connections: maximum connections to return, e.g. "20" (default).
     This is the primary tool for connection health — call it first for any sync status question."""
     try:
         resp = requests.post(

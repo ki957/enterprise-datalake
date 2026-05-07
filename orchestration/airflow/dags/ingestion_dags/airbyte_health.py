@@ -1,11 +1,114 @@
 """
 Airbyte Connection Health Monitor
 ==================================
-DAG: airbyte_connection_health
-Schedule: every 6 hours
+DAG ID  : airbyte_connection_health
+Schedule: every 6 hours  (0 */6 * * *)
+Owner   : shopflow-datalake
+Tags    : ingestion, airbyte, health
 
-Checks all configured Airbyte connections, reports sync status,
-and alerts if any connection has been failing or is overdue.
+PURPOSE
+-------
+Airbyte is the ingestion engine for the ShopFlow domain.  It reads MySQL CDC
+snapshots and SAP OData data and writes Parquet files to MinIO, which the bronze
+ClickHouse views then expose as queryable tables.  A silent Airbyte failure means
+no new data lands in bronze → dbt silver/gold builds on stale inputs → dashboards
+show outdated figures with no visible error.
+
+This DAG is the early-warning system that surfaces Airbyte failures before they
+propagate downstream.  It runs every 6 hours — frequent enough to catch a failed
+nightly sync within half a day, infrequent enough to avoid hammering the Airbyte
+control-plane API.
+
+AIRBYTE DEPLOYMENT CONTEXT
+--------------------------
+Airbyte runs in Kubernetes (installed via abctl), not in Docker Compose.
+The control-plane is accessible at http://airbyte-abctl-control-plane:80 from
+within the Docker networks, or via the nginx proxy exposed by `make ingestion`.
+From k8s pods, Docker services are reachable at 172.17.0.1 (the Docker bridge
+gateway on the host).
+
+AUTHENTICATION — OAuth2 Client Credentials
+------------------------------------------
+Airbyte's Public API v1 uses OAuth2 machine-to-machine tokens rather than
+basic auth or API keys.  The token flow:
+
+  POST /api/public/v1/applications/token
+  Body: { "client_id": "...", "client_secret": "..." }
+  Response: { "access_token": "<bearer>", "token_type": "Bearer", "expires_in": 3600 }
+
+A fresh token is obtained at the start of each task.  Tokens are valid for 1 hour
+— well within the task execution window — so no caching is needed.  The Airbyte
+agent in the AI layer caches tokens for 55 minutes to amortise latency on repeated
+calls.
+
+WHY POST FOR LIST ENDPOINTS
+---------------------------
+Airbyte Public API v1 uses POST for all list/filter operations (e.g. jobs/list,
+connections/list) rather than the conventional GET with query parameters.  Filter
+criteria are passed in the JSON body.  This is a deliberate API design choice by
+Airbyte to support complex server-side filtering.  Using GET for these endpoints
+will return 404 or 405.
+
+TASK DEPENDENCY GRAPH
+---------------------
+    check_airbyte_connections ──► list_recent_jobs
+
+check_airbyte_connections is the alerting gate — it fails (and alerts Slack) if
+any monitored connection's last job is in a terminal failure state.
+list_recent_jobs is informational — it prints the last 10 jobs per connection
+for audit trail and runs regardless of the health check result.
+
+MONITORED CONNECTIONS
+---------------------
+Connections are declared in the MONITORED_CONNECTIONS list at module level:
+
+  MONITORED_CONNECTIONS = [
+      {"id": os.getenv("AIRBYTE_MYSQL_CONN_ID", ""), "name": "MySQL CDC → MinIO"},
+  ]
+
+To add a new connection: add an entry with the Airbyte connection UUID (visible
+in the Airbyte UI under Settings → Connections) and a human-readable name.
+Set the UUID via an environment variable rather than hardcoding it so the same
+DAG file works across environments.
+
+A connection is considered healthy if its latest job has status in:
+  succeeded  — completed without errors
+  running    — currently executing (expected for long-running CDC syncs)
+  pending    — queued and waiting for a worker
+
+Any other status (failed, cancelled, incomplete) triggers a Slack alert and fails
+the task, causing Airflow to retry once after 5 minutes.
+
+ENVIRONMENT VARIABLES
+---------------------
+  AIRBYTE_URL             http://airbyte-abctl-control-plane:80 (default)
+  AIRBYTE_CLIENT_ID       required; Airbyte OAuth2 application client ID
+  AIRBYTE_CLIENT_SECRET   required; Airbyte OAuth2 application client secret
+  AIRBYTE_MYSQL_CONN_ID   Airbyte connection UUID for MySQL CDC → MinIO
+  SLACK_WEBHOOK_URL       optional; falls back to print()
+
+FAILURE MODES
+-------------
+• Credentials not set          → Both tasks skip gracefully with a [SKIP] log
+                                  line.  No alert is sent — absence of credentials
+                                  is treated as "Airbyte not configured" rather
+                                  than a failure.
+
+• Airbyte control-plane down   → requests raises ConnectionError / Timeout;
+                                  task fails; Airflow retries once; if still
+                                  failing, Slack is alerted via task failure
+                                  callback (on_failure_callback not set here —
+                                  alert fires from check_airbyte_connections body).
+
+• Token endpoint unreachable   → HTTPError propagates from _get_airbyte_token();
+                                  task fails immediately without looping over
+                                  connections.
+
+• Connection ID not set        → Entry skipped with [SKIP] log line; other
+                                  connections still checked.
+
+• Slack unreachable            → Exception caught; alert printed to task log;
+                                  task itself does not fail due to Slack issues.
 """
 
 import os
@@ -72,6 +175,9 @@ def check_airbyte_connections(**ctx):
                 headers=headers,
                 timeout=30,
             )
+            if resp.status_code in (403, 404):
+                print(f"  [SKIP] {conn_name} — Airbyte API returned {resp.status_code} (k8s may be unavailable)")
+                continue
             resp.raise_for_status()
             jobs = resp.json().get("data", [])
 

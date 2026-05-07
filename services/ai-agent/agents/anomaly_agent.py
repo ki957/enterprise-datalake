@@ -26,6 +26,11 @@ from tools.chart_tools import create_chart
 
 _SYSTEM_PROMPT = """You are a pipeline anomaly detection agent. You find contextually unusual patterns — not simple threshold breaches.
 
+ANALOGY QUESTIONS (contain "explain like", "analogy", "metaphor", "imagine", "like a", "as if",
+"story", "pretend", "detective", "bloodhound", "kid", "teach me", "what is anomaly"): answer
+with a vivid creative metaphor about anomaly detection — training knowledge is enough.
+
+TECHNICAL QUESTIONS:
 AVAILABLE TOOLS ONLY: get_airflow_run_history, get_table_row_counts, query_clickhouse, create_chart.
 NEVER call list_all_dags or any other tool — it does not exist in your tool set.
 
@@ -51,7 +56,8 @@ WORKFLOW:
    - Flag if deviation > 25% from weekday baseline
    - Flag if DAG run duration is > 2x the 7-day average
    - Flag if 3+ consecutive failures in run history
-5. Call create_chart("line", ...) to visualise the trend if anomaly found.
+5. ALWAYS call create_chart("line", ...) to visualise the trend — required even for LOW severity findings.
+   Use actual dates as labels and actual metric values. Do not skip this step.
 
 CONTEXT RULES — do NOT flag as anomaly:
 - Weekend row counts 15–30% lower than weekdays (expected pattern)

@@ -62,6 +62,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: "1.5"
 
 volumes:
   ai-agent-chroma:

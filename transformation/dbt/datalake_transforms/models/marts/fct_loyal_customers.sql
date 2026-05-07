@@ -10,8 +10,8 @@ WITH loyal_customers AS (
         dc.country,
         SUM(fo.revenue) AS total_revenue,
         COUNT(fo.order_id) AS order_count
-    FROM gold.fct_orders fo
-    JOIN gold.dim_customers dc ON fo.customer_key = dc.customer_key AND dc.is_current = 1
+    FROM {{ ref('fct_orders') }} fo
+    JOIN {{ ref('dim_customers') }} dc ON fo.customer_key = dc.customer_key AND dc.is_current = 1
     GROUP BY dc.customer_key, dc.full_name, dc.country
     HAVING COUNT(fo.order_id) > 5 AND SUM(fo.revenue) > 1000
 )

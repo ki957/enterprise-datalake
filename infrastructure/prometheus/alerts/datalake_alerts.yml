@@ -30,6 +30,33 @@ groups:
           summary: "ClickHouse memory usage high"
           description: "ClickHouse resident memory exceeds 4 GB. Consider query optimization."
 
+      - alert: ClickHouseQueryErrors
+        expr: rate(ClickHouseMetrics_FailedQuery{job="clickhouse"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse query error rate elevated"
+          description: "Failed queries per second: {{ $value | humanize }}."
+
+      - alert: ClickHouseDiskUsageHigh
+        expr: filesystem_avail_bytes{mountpoint="/var/lib/clickhouse"} / filesystem_total_bytes{mountpoint="/var/lib/clickhouse"} < 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse disk usage above 80%"
+          description: "Only {{ $value | humanizePercentage }} disk remaining."
+
+      - alert: ClickHouseMergeQueueBacklog
+        expr: ClickHouseMetrics_BackgroundMerge > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse merge queue is backed up"
+          description: "{{ $value }} background merges pending. MergeTree performance may degrade."
+
   # ── MinIO storage ────────────────────────────────────────────────────────────
   - name: minio
     rules:
@@ -60,6 +87,135 @@ groups:
           summary: "MinIO disk usage above 90%"
           description: "MinIO disk is nearly full ({{ $value | humanizePercentage }}). Immediate action required."
 
+      - alert: MinIOAPIErrors
+        expr: rate(minio_s3_requests_errors_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO API error rate elevated"
+          description: "{{ $value | humanize }} errors per second over 5 minutes."
+
+  # ── Kafka streaming ─────────────────────────────────────────────────────────
+  - name: kafka
+    rules:
+      - alert: KafkaDown
+        expr: up{job="kafka"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka broker is unreachable"
+          description: "Streaming ingestion pipeline is offline."
+
+      - alert: KafkaConsumerLagHigh
+        expr: kafka_consumer_group_lag > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag is high"
+          description: "Consumer group {{ $labels.group }} lag: {{ $value }} messages."
+
+      - alert: KafkaConnectDown
+        expr: up{job="kafka-connect"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka Connect is unreachable"
+          description: "Debezium CDC connector is offline. MySQL changes not streaming."
+
+  # ── Airflow orchestration ────────────────────────────────────────────────────
+  - name: airflow
+    rules:
+      - alert: AirflowDown
+        expr: up{job="airflow"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Airflow is unreachable"
+          description: "Pipeline orchestration is offline."
+
+      - alert: AirflowDAGFailureRate
+        expr: rate(airflow_dag_run_failed_total[15m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airflow DAG failure rate elevated"
+          description: "{{ $value | humanizePercentage }} of DAG runs failing over 15 minutes."
+
+      - alert: AirflowTaskDurationHigh
+        expr: airflow_task_duration_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airflow task running longer than 30 minutes"
+          description: "Task {{ $labels.task_id }} in {{ $labels.dag_id }} has been running for {{ $value | humanizeDuration }}."
+
+  # ── AI Agent service ────────────────────────────────────────────────────────
+  - name: ai_agent
+    rules:
+      - alert: AIAgentDown
+        expr: up{job="ai-agent"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI Agent service is unreachable"
+          description: "Conversational datalake interface is offline."
+
+      - alert: AIAgentHighLatency
+        expr: histogram_quantile(0.95, rate(ai_agent_request_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Agent p95 latency above 30 seconds"
+          description: "Response time: {{ $value | humanizeDuration }}."
+
+      - alert: AIAgentTimeoutRate
+        expr: rate(ai_agent_timeout_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Agent timeout rate elevated"
+          description: "{{ $value | humanizePercentage }} of requests timing out."
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+  - name: infrastructure
+    rules:
+      - alert: HostHighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host CPU usage above 85%"
+          description: "CPU usage: {{ $value | humanizePercentage }}."
+
+      - alert: HostHighMemory
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory usage above 90%"
+          description: "Available memory: {{ $value | humanizePercentage }}."
+
+      - alert: HostDiskUsageCritical
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host disk usage above 90%"
+          description: "Filesystem {{ $labels.mountpoint }} at {{ $value | humanizePercentage }}."
+
   # ── Prometheus self-health ───────────────────────────────────────────────────
   - name: prometheus
     rules:
@@ -80,3 +236,12 @@ groups:
         annotations:
           summary: "Slow Prometheus scrape on {{ $labels.job }}"
           description: "Scrape duration is {{ $value | humanizeDuration }} for {{ $labels.instance }}."
+
+      - alert: PrometheusTSDBDiskUsage
+        expr: prometheus_tsdb_storage_blocks_bytes / prometheus_tsdb_retention_limit_bytes > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus TSDB approaching retention limit"
+          description: "TSDB using {{ $value | humanizePercentage }} of retention budget."

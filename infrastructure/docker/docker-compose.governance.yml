@@ -22,6 +22,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__WEBSERVER__WTF_CSRF_ENABLED: "False"
     AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
     # Load DAGs directly from the repo mount — picks up all subdirectory DAGs automatically
     AIRFLOW__CORE__DAGS_FOLDER: /opt/datalake/orchestration/airflow/dags
@@ -57,6 +58,11 @@ x-airflow-common: &airflow-common
     POSTGRES_DB: ${POSTGRES_DB}
     # SAP + REST ingestion script location (mounted below)
     DATALAKE_HOME: /opt/datalake
+    # ── StatsD metrics for Prometheus ─────────────────────────────────────
+    AIRFLOW__METRICS__STATSD_ON: "True"
+    AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+    AIRFLOW__METRICS__STATSD_PORT: "9125"
+    AIRFLOW__METRICS__STATSD_PREFIX: airflow
     # Vault secrets backend — switch to VaultBackend by running `make setup-vault`
     # and setting VAULT_APPROLE_ROLE_ID + VAULT_APPROLE_SECRET_ID in .env.
     # Default: environment variables backend (works without Vault running).
@@ -111,7 +117,13 @@ services:
     networks:
       - frontend-net
       - backend-net
+      - management-net
     command: webserver
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
 
   airflow-scheduler:
     <<: *airflow-common
@@ -124,3 +136,30 @@ services:
       - backend-net
       - management-net
     command: scheduler
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.26.0
+    container_name: statsd-exporter
+    restart: unless-stopped
+    ports:
+      - "9125:9125/udp"
+      - "9102:9102"
+    networks:
+      - backend-net
+      - management-net
+    command:
+      - --statsd.listen-udp=:9125
+      - --web.listen-address=:9102
+      - --statsd.mapping-config=/etc/statsd-exporter/mapping.yml
+    volumes:
+      - ../../infrastructure/statsd-exporter/mapping.yml:/etc/statsd-exporter/mapping.yml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"

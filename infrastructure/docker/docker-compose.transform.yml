@@ -31,6 +31,7 @@ services:
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ../../infrastructure/clickhouse/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
+      - ../../infrastructure/clickhouse/performance.xml:/etc/clickhouse-server/config.d/performance.xml:ro
     networks:
       - backend-net
       - frontend-net
@@ -110,3 +111,35 @@ services:
       - ../../transformation/dbt/datalake_transforms/target:/usr/share/nginx/html:ro
     networks:
       - frontend-net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  spark-history:
+    image: apache/spark:3.5.0
+    container_name: spark-history
+    restart: unless-stopped
+    ports:
+      - "18080:18080"
+    environment:
+      SPARK_NO_DAEMONIZE: true
+      SPARK_HISTORY_OPTS: >-
+        -Dspark.history.fs.logDirectory=s3a://logs/spark-events
+        -Dspark.hadoop.fs.s3a.endpoint=http://minio:9000
+        -Dspark.hadoop.fs.s3a.access.key=admin
+        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD}
+        -Dspark.hadoop.fs.s3a.path.style.access=true
+        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    volumes:
+      - spark-data:/opt/spark/work
+    networks:
+      - backend-net
+      - frontend-net
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"

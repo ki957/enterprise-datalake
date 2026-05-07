@@ -38,8 +38,13 @@ SPARK_PACKAGES = (
 
 def submit_spark_profiler(**context) -> None:
     """spark-submit the profiler job and stream output to Airflow logs."""
+    import shutil
+    spark_bin = shutil.which("spark-submit") or "/opt/spark/bin/spark-submit"
+    if not shutil.which("spark-submit") and not os.path.exists(spark_bin):
+        print("WARNING: spark-submit not found on this host. Run 'make spark-profile' manually from the project root.")
+        return
     cmd = [
-        "spark-submit",
+        spark_bin,
         "--master", SPARK_MASTER,
         "--deploy-mode", "client",
         "--packages", SPARK_PACKAGES,

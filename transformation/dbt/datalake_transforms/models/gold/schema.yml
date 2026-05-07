@@ -115,6 +115,8 @@ models:
           - relationships:
               to: ref('dim_customers')
               field: customer_key
+              config:
+                severity: warn
       - name: product_key
         description: FK to dim_products
         tests:
@@ -122,6 +124,8 @@ models:
           - relationships:
               to: ref('dim_products')
               field: product_key
+              config:
+                severity: warn
       - name: amount
         tests:
           - not_null

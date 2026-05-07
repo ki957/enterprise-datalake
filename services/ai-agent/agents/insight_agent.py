@@ -35,17 +35,28 @@ SQL RULES:
 - DAU date column is event_date (not "date")
 - MRR revenue column is total_mrr (not mrr_usd)
 - Event funnel: event_type column (not event_name)
-- No LAG() — use self-join for period comparison
-- MoM growth formula: round((curr_val - prev_val) / prev_val * 100, 1) AS mom_pct
-  Self-join pattern: FROM monthly curr LEFT JOIN monthly prev ON addMonths(prev.month, 1) = curr.month
-  ALWAYS verify: positive = growth, negative = decline
+- No LAG() — ClickHouse doesn't support it. Use this exact subquery pattern for MoM:
+  SELECT curr.month, curr.revenue, prev.revenue AS prev_revenue,
+         round((curr.revenue - prev.revenue) / prev.revenue * 100, 1) AS mom_pct
+  FROM (SELECT toStartOfMonth(order_date) AS month, round(sum(revenue),2) AS revenue
+        FROM gold.fct_orders
+        WHERE order_date >= toStartOfMonth(subtractMonths(today(), 6))
+        GROUP BY month) AS curr
+  LEFT JOIN (SELECT toStartOfMonth(order_date) AS month, round(sum(revenue),2) AS revenue
+             FROM gold.fct_orders
+             WHERE order_date >= toStartOfMonth(subtractMonths(today(), 7))
+             GROUP BY month) AS prev ON addMonths(prev.month, 1) = curr.month
+  ORDER BY curr.month
+  Use subqueries, NOT a CTE — ClickHouse self-joins on CTEs can fail.
+  ALWAYS verify: positive mom_pct = growth, negative = decline.
+  For MoM queries: show revenue+mom_pct in a markdown table; create ONE line chart for mom_pct only.
 - No concat() with Decimal — use toString(round(col,2))
 - If query fails: fix it and retry immediately
 
 CHARTING: After getting query results, call create_chart with:
   chart_type: "bar", "line", "area", or "pie"
-  labels: list of strings e.g. ["Jan 2024", "Feb 2024", "Mar 2024"]
-  values: list of numbers e.g. [100.0, 200.0, 300.0]
+  labels: comma-separated STRING — e.g. "Jan 2024,Feb 2024,Mar 2024"  (NOT a list)
+  values: comma-separated STRING — e.g. "100.0,200.0,300.0"  (NOT a list)
   title: descriptive title
 Use bar for comparisons/rankings, line for time trends, pie for proportions (max 7 items).
 Strip commas from numbers e.g. 1234.56 not "1,234.56"

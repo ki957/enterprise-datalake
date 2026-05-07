@@ -237,9 +237,27 @@ Routing is keyword-scored in `graph/pipeline_graph.py::_route()`. Intent-specifi
 
 **Agent question-type detection**: Agents that handle both technical and creative questions need a `STEP 0` at the top of their system prompt — detect intent signals (e.g. "clauses", "legal", "story", "analogy") before any tool-call workflow. Without this, the routing hint can push the LLM into tool-call mode even for conceptual questions.
 
+- **STEP 0 must use the compact one-liner format** — verbose multi-paragraph STEP 0 blocks with "Do NOT call any tools" language bleed into the technical path and cause `Failed to call a function` errors on Groq. All 11 agents use the same pattern: `ANALOGY QUESTIONS (contain "..."): answer with a metaphor — no tools. TECHNICAL QUESTIONS: follow workflow.`
+- **Response format scoping** — label structured response formats as "for model generation requests only — NOT for analogy/creative questions". Without this, the format footer (e.g. `Model created: none`) appears on creative answers too.
+- **Mandatory chart calls** — use "ALWAYS call create_chart" not "call create_chart if anomaly found". Conditional phrasing causes the step to be skipped even when an anomaly is detected. Applies to `anomaly_agent.py`.
+- **Anomaly thresholds** (hardcoded in `anomaly_agent.py` system prompt): flag if deviation `> 25%` from same-weekday baseline; flag if DAG duration `> 2x` 7-day average; flag 3+ consecutive failures. **Non-anomaly rules** (do NOT flag): weekend row counts 15–30% lower, first-of-month having more records, runs taking longer post-schema-migration.
+
+**Self-healing guardrails** (`tools/healing_tools.py::_GUARDRAILS`) — every action is classified before execution:
+
+| Action | Behaviour |
+|--------|-----------|
+| `restart_airflow_task` | `auto_act=True` — executes immediately |
+| `trigger_airbyte_sync` | `auto_act=True` — executes immediately |
+| `rollback_dbt_model` | `auto_act=False` — parks in `agent_pending_actions` for human approval |
+| `switch_fallback_source` | `auto_act=False` — requires approval |
+| `scale_spark_executor` | `auto_act=False` — requires approval |
+| `drop_table` / `delete_data` | `blocked=True` — permanently blocked, manual intervention only |
+
+Actions not in this table are also rejected. When adding new healing tools, add an entry here first.
+
 **Unavailable-service fallback pattern**: When a backend service has no credentials or is unreachable, the tool itself should return a rich structured string (not a bare exception message) that contains all static knowledge the LLM needs to give a full answer. See `tools/airbyte_tools.py::_no_credentials_msg()` as the reference implementation.
 
-**Response cache**: `server.py` caches responses for 5 minutes keyed on `hash(agent:message)`. Identical questions asked within that window skip the LLM. Clear the cache (and force RAG re-seed) via `POST /api/rag/reload` — also called automatically by Airflow after schema changes.
+**Response cache**: `server.py` caches responses for 5 minutes keyed on `md5(f"{agent}:{message.strip().lower()}")`. Message is lowercased before hashing — "What are slow queries?" and "what are slow queries?" hit the same cache entry. Clear via `POST /api/rag/reload` — also called automatically by Airflow after schema changes.
 
 **RAG**: ChromaDB in `chroma_db/` (docker volume `docker_ai-agent-chroma`). One document per table + SQL pattern documents. Distance-threshold gating prevents irrelevant injection. Re-seeded when doc hash changes.
 
@@ -252,7 +270,9 @@ Routing is keyword-scored in `graph/pipeline_graph.py::_route()`. Intent-specifi
 - Model: `meta-llama/llama-4-scout-17b-16e-instruct` — do not change
 - `streaming=False` — streaming causes intermittent "Failed to call a function" on Groq
 - ≤4 tools per agent — `llama-3.3-70b-versatile` and older models break with 5+
-- Zero-argument tools break Groq's JSON schema generation — always add at least one optional param
+- Zero-argument tools break Groq's JSON schema generation — always add at least one optional `str` param
+- **All optional/dummy tool parameters must use `str` type** — Groq validates JSON types strictly: `limit: int = 30` causes `expected integer, but got string` when LLM passes `"30"`. Same for `bool`. Use `str` and convert internally (e.g. `n = int(limit) if str(limit).isdigit() else 10`)
+- **`create_chart` labels/values use `str` not `list`** — LLM passes comma-separated strings instead of arrays. `tools/chart_tools.py` has a `_parse_list()` helper that accepts list, JSON array string, or comma-separated string. Tool signature uses `labels: str, values: str`
 - Jinja `{{ }}` in JSON tool call parameters causes parse errors — `dbt_write_tools.py` strips Jinja from SQL and injects it server-side
 - Daily TPD quota errors (HTTP 429 + "tokens per day") are caught in `pipeline_graph.py` and surfaced as a clean user-facing message with the reset wait time — no retry, no fallback
 
@@ -270,6 +290,8 @@ Key files: `src/store/index.js` (all global state), `src/hooks/useChat.js` (SSE 
 `CostDashboard` is lazy-loaded via `React.lazy()` — Plotly's 4.8 MB chunk only downloads when the user opens it.
 
 **PWA**: service worker at `public/sw.js` — cache-first for static shell, network-only for `/api/*`. Manifest shortcuts: `/?agent=insight` and `/?costs=1` (handled in `App.jsx` `useEffect`).
+
+**BFCache (back-forward cache) workaround** (`App.jsx`): Chrome restores the JS heap on back-navigation, keeping stale Zustand chat state. `App.jsx` listens for `pageshow` with `e.persisted === true` and calls `newSession()` to reset state on page thaw. Without this, users see old chat history after pressing Back.
 
 ### Airflow DAGs (`orchestration/airflow/dags/`)
 
@@ -322,6 +344,8 @@ Runs in k8s via `abctl` — not Docker Compose. `make ingestion` is nginx proxy 
 - **Date truncation**: `toStartOfMonth()` not `DATE_TRUNC`. Filter: `is_current = 1` not `= true`
 - **dbt compile target path**: always pass `--target-path /tmp/dbt_target` to avoid permission errors on root-owned `target/`
 - **Streamlit is legacy** — `make ai-agent` still works but the active development path is `make ui` (FastAPI + React). The Dockerfile now runs `server.py`, not `app.py`
+- **Graphify outputs**: In `graphify-out/` (1324 Obsidian notes, interactive `graph.html`)
+- **VS Code workspace**: Open `enterprise-datalake.code-workspace` in `.vscode/` for 9 organized folder groups
 
 ### Governance (`governance/`)
 

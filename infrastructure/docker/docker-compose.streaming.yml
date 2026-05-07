@@ -9,6 +9,7 @@ services:
     ports:
       - "9092:9092"
       - "9093:9093"
+      - "9999:9999"   # JMX metrics
     environment:
       # KRaft — no Zookeeper (apache/kafka uses KAFKA_ prefix directly)
       KAFKA_NODE_ID: "1"
@@ -20,14 +21,21 @@ services:
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
       KAFKA_LOG_RETENTION_HOURS: "168"
       KAFKA_LOG_RETENTION_BYTES: "536870912"
+      KAFKA_LOG_SEGMENT_BYTES: "104857600"
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: "102400"
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: "102400"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       KAFKA_HEAP_OPTS: "-Xmx256m -Xms128m"
       # Fixed cluster ID for reproducible restarts — base64(UUID)
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg=="
+      # JMX exporter for Prometheus metrics
+      KAFKA_JMX_PORT: "9999"
+      KAFKA_JMX_HOSTNAME: "kafka"
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
@@ -39,6 +47,36 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+
+  jmx-exporter:
+    image: bitnami/jmx-exporter:latest
+    container_name: jmx-exporter
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    environment:
+      JMX_EXPORTER_PORT: "5556"
+      JMX_EXPORTER_HOSTNAME: "0.0.0.0"
+      JMX_EXPORTER_CONFIG: /etc/jmx-exporter/kafka-jmx-exporter-config.yml
+      JMX_REMOTE_URL: "service:jmx:rmi:///jndi/rmi://kafka:9999/jmxrmi"
+    volumes:
+      - ../../infrastructure/jmx-exporter/kafka-config.yml:/etc/jmx-exporter/kafka-jmx-exporter-config.yml:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - management-net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
 
   # ── Kafka Connect with Debezium MySQL connector ───────────────────────────────
   # Heap capped at 512MB. Contains: debezium-connector-mysql plugin.
@@ -59,6 +97,18 @@ services:
       CONNECT_HEAP_OPTS: "-Xmx512m -Xms256m"
       # Reduce log noise in dev
       LOG_LEVEL: "WARN"
+      # Producer tuning for throughput
+      CONNECT_PRODUCER_BUFFER_MEMORY: "33554432"
+      CONNECT_PRODUCER_BATCH_SIZE: "65536"
+      CONNECT_PRODUCER_LINGER_MS: "10"
+      CONNECT_PRODUCER_MAX_REQUEST_SIZE: "10485760"
+      # Consumer tuning
+      CONNECT_CONSUMER_FETCH_MIN_BYTES: "1"
+      CONNECT_CONSUMER_FETCH_MAX_WAIT_MS: "500"
+      CONNECT_CONSUMER_MAX_PARTITION_FETCH_BYTES: "1048576"
+      # Offset flush
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: "60000"
+      CONNECT_OFFSET_FLUSH_TIMEOUT_MS: "30000"
     depends_on:
       kafka:
         condition: service_healthy
@@ -71,6 +121,11 @@ services:
       retries: 5
       start_period: 45s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
 
 volumes:
   kafka-data:

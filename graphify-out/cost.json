@@ -17,6 +17,20 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "files": 107
+    },
+    {
+      "date": "2026-05-02T09:41:56.606822+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 103
+    },
+    {
+      "date": "2026-05-05",
+      "mode": "update",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "nodes_added": 1638,
+      "edges_added": 2280
     }
   ],
   "total_input_tokens": 80000,

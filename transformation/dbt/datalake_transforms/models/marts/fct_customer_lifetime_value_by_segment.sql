@@ -3,4 +3,14 @@
 
 {{ config(schema='gold', materialized='table', engine='MergeTree()', order_by='tuple()') }}
 
-WITH customer_lifetime_value AS ( SELECT dc.segment, SUM(fo.revenue) AS lifetime_value FROM {{ ref('fct_orders') }} fo JOIN {{ ref('dim_customers') }} dc ON fo.customer_key = dc.customer_key AND dc.is_current = 1 GROUP BY dc.segment ) SELECT * FROM customer_lifetime_value
+WITH customer_lifetime_value AS (
+    SELECT
+        dc.segment,
+        SUM(fo.revenue) AS lifetime_value
+    FROM {{ ref('fct_orders') }} fo
+    JOIN {{ ref('dim_customers') }} dc
+        ON fo.customer_key = dc.customer_key
+        AND dc.is_current = 1
+    GROUP BY dc.segment
+)
+SELECT * FROM customer_lifetime_value

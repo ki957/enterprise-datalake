@@ -28,33 +28,8 @@ from decimal import Decimal
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
-
-
-def _send_slack(message: str) -> None:
-    import requests as _r
-    if not SLACK_WEBHOOK_URL:
-        print(f"[ALERT] {message}")
-        return
-    try:
-        _r.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
-    except Exception as exc:
-        print(f"[ALERT - send failed: {exc}] {message}")
-
-
-def notify_failure(context) -> None:
-    dag_id  = context["dag"].dag_id
-    task_id = context["task_instance"].task_id
-    run_id  = context["run_id"]
-    log_url = context["task_instance"].log_url
-    exc     = context.get("exception", "unknown error")
-    _send_slack(
-        f":red_circle: *DAG FAILURE*\n"
-        f"*DAG:* `{dag_id}`  *Task:* `{task_id}`\n"
-        f"*Run:* `{run_id}`\n"
-        f"*Error:* {str(exc)[:300]}\n"
-        f"*Logs:* {log_url}"
-    )
+from common.alerting import notify_failure
+from common.helpers import ch_exec, ch_insert
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -64,54 +39,8 @@ PG_USER = os.getenv("POSTGRES_USER", "postgres")
 PG_PASS = os.getenv("POSTGRES_PASSWORD", "")
 PG_DB   = os.getenv("POSTGRES_DB", "airflow")
 
-CH_URL      = os.getenv("CLICKHOUSE_URL", "http://clickhouse:8123/")
-CH_USER     = os.getenv("DBT_CLICKHOUSE_USER", "default")
-CH_PASSWORD = os.getenv("DBT_CLICKHOUSE_PASSWORD", "")
-CH_AUTH     = (CH_USER, CH_PASSWORD)
-
-DATALAKE_HOME = os.getenv("DATALAKE_HOME", "/opt/datalake")
-DBT_PROJECT   = f"{DATALAKE_HOME}/transformation/dbt/datalake_transforms"
-DBT_PROFILES  = "/opt/airflow/dbt_profiles.yml"
-DBT_BIN       = "/home/airflow/.local/bin/dbt"
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _ch(sql: str) -> str:
-    import requests
-    resp = requests.post(CH_URL, data=sql, auth=CH_AUTH, timeout=120)
-    resp.raise_for_status()
-    return resp.text.strip()
-
-
-def _ch_insert(table: str, rows: list, columns: list) -> None:
-    import requests
-    if not rows:
-        return
-    lines = []
-    for row in rows:
-        fields = []
-        for v in row:
-            if v is None:
-                fields.append("\\N")
-            elif isinstance(v, datetime):
-                fields.append(v.strftime("%Y-%m-%d %H:%M:%S"))
-            elif isinstance(v, Decimal):
-                fields.append(str(float(v)))
-            else:
-                fields.append(str(v).replace("\t", " ").replace("\n", " "))
-        lines.append("\t".join(fields))
-
-    tsv = "\n".join(lines)
-    col_list = ", ".join(columns)
-    sql = f"INSERT INTO {table} ({col_list}) FORMAT TabSeparated"
-    resp = requests.post(
-        CH_URL,
-        params={"query": sql, "database": "raw"},
-        data=tsv.encode(),
-        auth=CH_AUTH,
-        timeout=300,
-    )
-    resp.raise_for_status()
+# Imported from common.helpers: CH_URL, CH_USER, CH_PASSWORD, CH_AUTH, DBT_BIN, DBT_PROJECT
+from common.helpers import CH_URL, CH_USER, CH_PASSWORD, CH_AUTH, DBT_BIN, DBT_PROJECT
 
 
 # ── Task functions ─────────────────────────────────────────────────────────────
@@ -132,8 +61,8 @@ def extract_postgres_to_clickhouse(**context):
             "FROM saas_users"
         )
         users = cur.fetchall()
-        _ch("TRUNCATE TABLE IF EXISTS raw.saas_users")
-        _ch_insert(
+        ch_exec("TRUNCATE TABLE IF EXISTS raw.saas_users")
+        ch_insert(
             "raw.saas_users", users,
             ["id", "email", "name", "company", "country", "plan", "mrr", "status", "created_at", "updated_at"],
         )
@@ -141,22 +70,22 @@ def extract_postgres_to_clickhouse(**context):
 
         cur.execute("SELECT id, user_id, event_type, page, occurred_at FROM saas_events")
         events = cur.fetchall()
-        _ch("TRUNCATE TABLE IF EXISTS raw.saas_events")
-        _ch_insert(
+        ch_exec("TRUNCATE TABLE IF EXISTS raw.saas_events")
+        ch_insert(
             "raw.saas_events", events,
             ["id", "user_id", "event_type", "page", "occurred_at"],
         )
         print(f"Extracted {len(events)} events")
 
         cur.execute(
-            "SELECT id, user_id, plan, status, billing_cycle, mrr, started_at, ended_at "
+            "SELECT id, user_id, plan, status, billing_cycle, amount, started_at, expires_at "
             "FROM saas_subscriptions"
         )
         subs = cur.fetchall()
-        _ch("TRUNCATE TABLE IF EXISTS raw.saas_subscriptions")
-        _ch_insert(
+        ch_exec("TRUNCATE TABLE IF EXISTS raw.saas_subscriptions")
+        ch_insert(
             "raw.saas_subscriptions", subs,
-            ["id", "user_id", "plan", "status", "billing_cycle", "mrr", "started_at", "ended_at"],
+            ["id", "user_id", "plan", "status", "billing_cycle", "amount", "started_at", "expires_at"],
         )
         print(f"Extracted {len(subs)} subscriptions")
 
@@ -173,7 +102,8 @@ def extract_postgres_to_clickhouse(**context):
 def run_dbt_saas_staging(**context):
     result = subprocess.run(
         [DBT_BIN, "run", "--select", "staging", "--profiles-dir", "/opt/airflow",
-         "--profile", "datalake_transforms"],
+         "--profile", "datalake_transforms",
+         "--target-path", "/tmp/dbt_target", "--log-path", "/tmp/dbt_logs"],
         cwd=DBT_PROJECT,
         capture_output=True,
         text=True,
@@ -186,7 +116,8 @@ def run_dbt_saas_staging(**context):
 def run_dbt_saas_marts(**context):
     result = subprocess.run(
         [DBT_BIN, "run", "--select", "marts", "--profiles-dir", "/opt/airflow",
-         "--profile", "datalake_transforms"],
+         "--profile", "datalake_transforms",
+         "--target-path", "/tmp/dbt_target", "--log-path", "/tmp/dbt_logs"],
         cwd=DBT_PROJECT,
         capture_output=True,
         text=True,
@@ -209,8 +140,8 @@ def observability_check(**context):
         ("gold", "fct_mrr"),
     ]
 
-    _ch("CREATE DATABASE IF NOT EXISTS pipeline_metadata")
-    _ch("""
+    ch_exec("CREATE DATABASE IF NOT EXISTS pipeline_metadata")
+    ch_exec("""
         CREATE TABLE IF NOT EXISTS pipeline_metadata.observability_runs (
             run_date     Date,
             pipeline     String,
@@ -229,10 +160,10 @@ def observability_check(**context):
 
     for schema, tbl in SAAS_TABLES:
         try:
-            current = int(_ch(f"SELECT count() FROM {schema}.{tbl}"))
+            current = int(ch_exec(f"SELECT count() FROM {schema}.{tbl}"))
         except Exception:
             current = 0
-        prev_result = _ch(
+        prev_result = ch_exec(
             f"SELECT row_count FROM pipeline_metadata.observability_runs "
             f"WHERE pipeline = 'saas' AND table_name = '{tbl}' "
             f"AND run_date < toDate('{run_date}') "
@@ -243,11 +174,11 @@ def observability_check(**context):
         status = "anomaly" if prev > 0 and delta_pct < -25 else "ok"
         if status == "anomaly":
             anomalies.append(f"{schema}.{tbl}: {prev:,} → {current:,} ({delta_pct:+.1f}%)")
-        rows.append(f"'{run_date}'\t'saas'\t'{tbl}'\t{current}\t{prev}\t{delta_pct}\t'{status}'")
+        rows.append(f"{run_date}\tsaas\t{tbl}\t{current}\t{prev}\t{delta_pct}\t{status}")
         print(f"  {schema}.{tbl}: {prev:,} → {current:,} ({delta_pct:+.1f}%) [{status}]")
 
     if rows:
-        _ch(
+        ch_exec(
             f"INSERT INTO pipeline_metadata.observability_runs "
             f"(run_date, pipeline, table_name, row_count, prev_count, delta_pct, status) "
             f"FORMAT TabSeparated\n" + "\n".join(rows)
@@ -261,8 +192,8 @@ def observability_check(**context):
 
 
 def data_quality_check(**context):
-    users  = int(_ch("SELECT count() FROM raw.saas_users"))
-    events = int(_ch("SELECT count() FROM raw.saas_events"))
+    users  = int(ch_exec("SELECT count() FROM raw.saas_users"))
+    events = int(ch_exec("SELECT count() FROM raw.saas_events"))
     assert users > 0,  f"No users in raw.saas_users"
     assert events > 0, f"No events in raw.saas_events"
     print(f"Quality check passed — {users:,} users, {events:,} events")

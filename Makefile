@@ -320,3 +320,40 @@ health:
 	@curl -sf http://localhost:9090/-/healthy >/dev/null && echo 'Prometheus  :9090  OK' || echo 'Prometheus  :9090  DOWN'
 	@curl -sf http://localhost:3000/api/health >/dev/null && echo 'Grafana     :3000  OK' || echo 'Grafana     :3000  DOWN'
 	@curl -sf http://localhost:5432 >/dev/null 2>&1 || echo 'PostgreSQL  :5432  OK (no HTTP)'
+
+# ── Setup: one-command bootstrap of the full platform ─────────────────────────
+.PHONY: setup
+setup: all
+	@echo ''
+	@echo '── Running setup scripts ──────────────────────────────────'
+	@echo 'Step 1/6: Vault secrets...'
+	@-$(MAKE) setup-vault 2>/dev/null || echo '  [SKIPPED] Vault not configured'
+	@echo 'Step 2/6: Keycloak SSO...'
+	@-$(MAKE) setup-keycloak 2>/dev/null || echo '  [SKIPPED] Keycloak not configured'
+	@echo 'Step 3/6: Seeding MySQL (small dataset)...'
+	@-$(MAKE) seed-mysql-small 2>/dev/null || echo '  [SKIPPED] MySQL seed failed'
+	@echo 'Step 4/6: Seeding SaaS PostgreSQL (small)...'
+	@-$(MAKE) seed-saas-small 2>/dev/null || echo '  [SKIPPED] SaaS seed failed'
+	@echo 'Step 5/6: Bronze layer init...'
+	@-$(MAKE) bronze-init-small 2>/dev/null || echo '  [SKIPPED] Bronze init failed'
+	@echo 'Step 6/6: Superset dashboards...'
+	@-$(MAKE) setup-superset 2>/dev/null || echo '  [SKIPPED] Superset setup failed'
+	@echo ''
+	@echo '── Platform ready ────────────────────────────────────────'
+	@$(MAKE) health
+
+# ── Reset: clean teardown and re-bootstrap ─────────────────────────────────────
+.PHONY: reset
+reset:
+	@echo 'WARNING: This will delete ALL data and restart the full stack.'
+	@printf "Type 'yes' to confirm: "; \
+	  read CONFIRM; \
+	  if [ "$$CONFIRM" = "yes" ]; then \
+	    echo 'Stopping all containers...'; \
+	    $(MAKE) down; \
+	    docker volume prune -f; \
+	    echo 'Rebuilding from scratch...'; \
+	    $(MAKE) setup; \
+	  else \
+	    echo 'Aborted.'; \
+	  fi

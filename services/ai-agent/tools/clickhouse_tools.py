@@ -160,8 +160,9 @@ def get_table_row_counts(schema: str = "gold") -> str:
 
 
 @tool
-def check_slow_queries() -> str:
-    """Check ClickHouse system.query_log for slow queries (> 1 second) from today.
+def check_slow_queries(threshold_seconds: str = "1") -> str:
+    """Check ClickHouse system.query_log for slow queries from today.
+    threshold_seconds: minimum duration to flag, e.g. "1" for 1 second (default).
     Use to identify performance bottlenecks."""
     try:
         sql = """

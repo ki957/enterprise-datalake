@@ -75,8 +75,8 @@ def check_minio_bucket_size(bucket: str = "raw") -> str:
 
 
 @tool
-def list_minio_buckets() -> str:
-    """List all MinIO buckets. Use to confirm bucket structure is correct."""
+def list_minio_buckets(max_buckets: str = "50") -> str:
+    """List all MinIO buckets (up to max_buckets, e.g. "50"). Use to confirm bucket structure is correct."""
     try:
         buckets = _client().list_buckets()
         lines = [f"  {b.name} (created {b.creation_date.date()})" for b in buckets]

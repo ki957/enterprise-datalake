@@ -24,11 +24,25 @@ import plotly.graph_objects as go
 from langchain_core.tools import tool
 
 
+def _parse_list(v):
+    """Accept a Python list, a JSON array string, or a comma-separated string."""
+    if isinstance(v, list):
+        return v
+    s = str(v).strip()
+    try:
+        parsed = json.loads(s)
+        if isinstance(parsed, list):
+            return parsed
+    except Exception:
+        pass
+    return [x.strip() for x in s.split(",")]
+
+
 @tool
 def create_chart(
     chart_type: str,
-    labels: list,
-    values: list,
+    labels: str,
+    values: str,
     title: str,
     x_label: str = "",
     y_label: str = "",
@@ -36,16 +50,16 @@ def create_chart(
     """Create a Plotly chart from query data. Returns an embeddable chart block.
 
     chart_type — "bar" | "line" | "area" | "pie"
-    labels     — list of label strings, e.g. ["Jan", "Feb", "Mar"]
-    values     — list of numeric values, e.g. [100.0, 200.0, 150.0]
+    labels     — JSON array string or comma-separated labels, e.g. '["Jan","Feb"]' or 'Jan,Feb'
+    values     — JSON array string or comma-separated numbers, e.g. '[100,200]' or '100,200'
     title      — chart title
 
-    Use after query_clickhouse. Pass the first column as labels and the main
-    numeric column as values directly as Python lists.
+    Use after query_clickhouse. Extract the first column as labels and the
+    main numeric column as values from the returned markdown table.
     """
     try:
-        labs = [str(l) for l in labels]
-        vals = [float(str(v).replace(",", "")) for v in values]
+        labs = [str(l) for l in _parse_list(labels)]
+        vals = [float(str(v).replace(",", "")) for v in _parse_list(values)]
 
         fig = go.Figure()
 

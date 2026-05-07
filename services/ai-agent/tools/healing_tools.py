@@ -184,13 +184,15 @@ def request_approval(action: str, target_description: str, reasoning: str) -> st
 
 
 @tool
-def get_recent_incidents_summary() -> str:
-    """Return the last 10 incidents detected and acted on by the self-healing agent.
+def get_recent_incidents_summary(limit: str = "10") -> str:
+    """Return recent incidents detected and acted on by the self-healing agent.
+    limit: number of incidents to return as a string, e.g. "10" (default).
     Use to understand recent pipeline health and avoid repeating the same fix."""
-    incidents = get_recent_incidents(10)
+    n = int(limit) if str(limit).isdigit() else 10
+    incidents = get_recent_incidents(n)
     if not incidents:
         return "No incidents recorded yet — the self-healing agent hasn't acted on anything."
-    lines = ["**Recent incidents (last 10):**\n"]
+    lines = [f"**Recent incidents (last {n}):**\n"]
     for inc in incidents:
         status = "✅ Resolved" if inc["resolved"] else "🔴 Open"
         action = inc["action_taken"] or "no action taken"

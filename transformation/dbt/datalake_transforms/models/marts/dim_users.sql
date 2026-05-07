@@ -11,7 +11,7 @@ SELECT
     u.created_at,
     u.days_since_signup,
     s.billing_cycle,
-    s.expires_at,
+    s.ended_at,
     CASE WHEN u.status = 'churned' THEN 1 ELSE 0 END AS is_churned,
     CASE WHEN u.plan = 'free' THEN 1 ELSE 0 END AS is_free
 FROM {{ ref('stg_users') }} u

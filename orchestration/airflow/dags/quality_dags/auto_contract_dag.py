@@ -1,21 +1,116 @@
 """
 Auto-Contract DAG
-==================
-DAG: auto_contract
-Schedule: daily at 09:00 UTC (after data_quality_suite at 07:30)
+=================
+DAG ID  : auto_contract
+Schedule: daily at 09:00 UTC  (runs after data_quality_suite completes at ~08:00)
+Owner   : shopflow-datalake
+Tags    : governance, contracts, quality
 
-Tasks:
-1. collect_column_usage  — query system.query_log for last 24h,
-                           identify hot/cold columns across gold.*,
-                           write results to raw.column_usage_stats
-2. generate_contracts    — for hot columns (query_count > 5),
-                           profile the table and write GE expectation suites
-3. flag_deprecations     — log cold columns (query_count = 0) to Slack/stdout
+PURPOSE
+-------
+Data contracts are machine-readable agreements between data producers and
+consumers that specify what a table must look like (row counts, column nullity,
+value ranges, uniqueness).  Writing them by hand is error-prone and quickly
+goes stale as schemas evolve.
 
-Integration with AI Agent:
-  raw.column_usage_stats is queryable by the Performance Agent.
-  GE suites are written to governance/great_expectations/expectations/
-  and are queryable by the Contract Agent via list_expectation_suites.
+This DAG automates contract lifecycle management in three steps:
+  1. Observe   — mine ClickHouse query logs to understand which columns are
+                 actually being queried ("hot") vs ignored ("cold").
+  2. Codify    — for every table that has at least one hot column, profile the
+                 current data and emit a Great Expectations expectation suite
+                 as a JSON file under governance/great_expectations/expectations/.
+  3. Flag      — surface cold columns (zero queries in 24 h) as deprecation
+                 candidates so the data team can make a conscious removal decision.
+
+This approach solves a common contract drift problem: contracts are generated
+from *real query traffic*, not from what the team thinks is used — making them
+accurate reflections of actual consumer needs.
+
+TASK DEPENDENCY GRAPH
+---------------------
+    collect_column_usage ──► generate_contracts ──► flag_deprecations
+
+TASK DETAILS
+------------
+1. collect_column_usage
+   Reads system.query_log (last 24 h, type='QueryFinish', kind='Select')
+   for all queries that reference gold.* tables.  For each known column in
+   gold.*, counts how many queries contained its name (case-insensitive string
+   match — reliable for known schema column names).
+
+   Results are written to raw.column_usage_stats:
+     schema_name, table_name, column_name, query_count_24h,
+     last_queried_at, captured_at
+   The table is partitioned by captured_at with a 90-day TTL so usage history
+   is retained for trend analysis without unbounded growth.  Existing rows for
+   today are deleted before insertion to keep the operation idempotent.
+
+   Hot/cold classification:
+     HOT_THRESHOLD = 5 queries in 24 h → table qualifies for contract generation
+     Cold          = 0 queries in 24 h → flagged for deprecation review
+
+2. generate_contracts
+   Finds distinct gold tables with at least one hot column today, then calls
+   _generate_table_contract() for each.  For every qualifying table the
+   function profiles the live data in ClickHouse and generates a GE suite with:
+
+     • expect_table_row_count_to_be_between
+         ± 10% of current row count + 100 row floor — tolerates small daily drift
+         while catching large load failures or accidental truncations.
+
+     • expect_column_to_exist
+         Every column in the table schema must be present — catches silent
+         column removals in dbt model refactors.
+
+     • expect_column_values_to_not_be_null
+         Applied to all non-Nullable non-system columns (_sign, _version excluded).
+         Enforces that the transformation layer did not lose data.
+
+     • expect_column_values_to_be_between
+         Applied to numeric non-Nullable columns; bounds derived from live
+         min/max.  Catches sign errors, unit changes, and overflow artefacts.
+
+     • expect_column_values_to_be_unique
+         Applied to any column whose name ends in _id or _key — enforces PK
+         and surrogate-key uniqueness that ClickHouse does not enforce natively.
+
+   Suites are written to governance/great_expectations/expectations/{schema}_{table}.json.
+   An existing suite is backed up to .json.bak before overwrite so a bad
+   regeneration does not permanently destroy the previous contract.
+   The data_quality_suite DAG picks these suites up automatically on its next run.
+
+3. flag_deprecations
+   Queries raw.column_usage_stats for columns with query_count_24h = 0 today.
+   Groups them by table and prints a report to the task log.  When more than
+   20 cold columns exist, a Slack summary is sent so the team can decide which
+   columns to mark as deprecated or remove from the dbt model.
+
+   This task never auto-removes any column — removal is always a human decision.
+
+AI AGENT INTEGRATION
+--------------------
+  raw.column_usage_stats  → queryable by the Performance agent
+                            ("which columns are heavily queried?")
+  GE expectation suites   → listed and parsed by the Contracts agent
+                            via list_expectation_suites / read_expectation_suite
+
+ENVIRONMENT VARIABLES
+---------------------
+  CLICKHOUSE_URL          http://clickhouse:8123/ (default)
+  DBT_CLICKHOUSE_USER     default
+  DBT_CLICKHOUSE_PASSWORD —
+  SLACK_WEBHOOK_URL       optional; falls back to print()
+  DATALAKE_HOME           /opt/datalake; used to locate the GE expectations directory
+
+FAILURE MODES
+-------------
+• No gold tables found         → collect_column_usage exits early; subsequent
+                                 tasks receive empty inputs and skip gracefully
+• ClickHouse system.query_log  → may be empty if logging is disabled; DAG still
+  disabled                       writes zero-count rows for all columns (safe)
+• Individual table profiling   → caught per-table; other tables still get contracts
+  fails                          (exception printed, loop continues)
+• Slack unreachable            → alert printed to log; task does not fail
 """
 
 import json

@@ -21,12 +21,62 @@ from typing import Any
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+# ── OpenTelemetry initialization (before any other imports) ───────────────────
+_OTEL_ENABLED = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "") != ""
+_tracer = None
+
+if _OTEL_ENABLED:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+    provider = TracerProvider()
+    processor = BatchSpanProcessor(OTLPSpanExporter())
+    provider.add_span_processor(processor)
+    trace.set_tracer_provider(provider)
+    _tracer = trace.get_tracer("ai-agent")
+    HTTPXClientInstrumentor().instrument()
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+
+
+def _get_or_create_metric(metric_cls, name, doc, labelnames=(), **kwargs):
+    try:
+        return metric_cls(name, doc, labelnames, **kwargs)
+    except ValueError:
+        return REGISTRY._names_to_collectors.get(name) or REGISTRY._names_to_collectors.get(name + "_total")
+
+
+# ── Prometheus metrics ─────────────────────────────────────────────────────────
+METRIC_REQUESTS = _get_or_create_metric(
+    Counter, "ai_agent_requests_total", "Total API requests", ["endpoint", "agent", "status"]
+)
+METRIC_DURATION = _get_or_create_metric(
+    Histogram, "ai_agent_request_duration_seconds", "Request duration",
+    ["endpoint", "agent"], buckets=[1, 5, 10, 20, 30, 45, 60, 75, 90, 120]
+)
+METRIC_CACHE_HITS = _get_or_create_metric(Counter, "ai_agent_cache_hits_total", "Response cache hits")
+METRIC_CACHE_MISSES = _get_or_create_metric(Counter, "ai_agent_cache_misses_total", "Response cache misses")
+METRIC_TIMEOUTS = _get_or_create_metric(Counter, "ai_agent_timeout_total", "Request timeouts")
+METRIC_ERRORS = _get_or_create_metric(Counter, "ai_agent_errors_total", "Request errors", ["endpoint"])
+METRIC_INPUT_TOKENS = _get_or_create_metric(
+    Counter, "ai_agent_input_tokens_total", "Total input tokens consumed", ["agent"]
+)
+METRIC_OUTPUT_TOKENS = _get_or_create_metric(
+    Counter, "ai_agent_output_tokens_total", "Total output tokens consumed", ["agent"]
+)
+METRIC_COST_USD = _get_or_create_metric(Counter, "ai_agent_cost_usd_total", "Total cost in USD", ["agent"])
+METRIC_ACTIVE_SESSIONS = _get_or_create_metric(Gauge, "ai_agent_active_sessions", "Number of active sessions")
+METRIC_CACHE_SIZE = _get_or_create_metric(Gauge, "ai_agent_cache_size", "Number of entries in response cache")
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -75,25 +125,47 @@ async def lifespan(app: FastAPI):
 _CACHE_TTL   = 300   # seconds (5 min — safe for analytics that refresh daily)
 _resp_cache: dict[str, tuple[dict, float]] = {}
 
+# Optional Redis-backed cache (falls back to in-memory dict if Redis unavailable)
+_redis_cache = None
+try:
+    from cache.redis_cache import RedisCache
+    _redis_cache = RedisCache(ttl=_CACHE_TTL)
+except ImportError:
+    pass
+
 
 def _cache_key(message: str, agent: str) -> str:
     return hashlib.md5(f"{agent}:{message.strip().lower()}".encode()).hexdigest()  # noqa: S324
 
 
 def _get_cached(key: str) -> dict | None:
+    # Try Redis first
+    if _redis_cache is not None:
+        result = _redis_cache.get(key)
+        if result is not None:
+            METRIC_CACHE_HITS.inc()
+            return result
+    # Fallback to in-memory
     entry = _resp_cache.get(key)
     if entry and (_time.time() - entry[1]) < _CACHE_TTL:
+        METRIC_CACHE_HITS.inc()
         return entry[0]
     _resp_cache.pop(key, None)
+    METRIC_CACHE_MISSES.inc()
     return None
 
 
 def _set_cached(key: str, result: dict) -> None:
     _resp_cache[key] = (result, _time.time())
+    if _redis_cache is not None:
+        _redis_cache.set(key, result)
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="DataLake AI API", lifespan=lifespan)
+
+if _OTEL_ENABLED:
+    FastAPIInstrumentor.instrument_app(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -178,6 +250,17 @@ class ChatRequest(BaseModel):
 async def chat(req: ChatRequest):
     from graph.pipeline_graph import _route, AgentState
 
+    if _OTEL_ENABLED and _tracer:
+        with _tracer.start_as_current_span("chat_request") as span:
+            span.set_attribute("session_id", req.session_id)
+            span.set_attribute("agent", req.agent)
+            return await _handle_chat(req)
+    return await _handle_chat(req)
+
+
+async def _handle_chat(req):
+    from graph.pipeline_graph import _route, AgentState
+
     message = req.message
     if req.agent != "auto":
         message = ROUTING_HINTS.get(req.agent, "") + message
@@ -193,6 +276,7 @@ async def chat(req: ChatRequest):
     cached = _get_cached(ck)
 
     async def generate():
+        req_start = _time.time()
         yield f"data: {json.dumps({'type': 'status', 'agent': predicted, 'message': AGENT_STATUS.get(predicted, 'Thinking…')})}\n\n"
 
         # ── Cache hit — stream immediately, skip LLM entirely ──────────────
@@ -200,6 +284,9 @@ async def chat(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'agent', 'agent': cached['agent'], 'trace': cached['trace']})}\n\n"
             async for chunk in chunk_stream(cached["response"]):
                 yield chunk
+            latency = _time.time() - req_start
+            METRIC_DURATION.labels(endpoint="/api/chat", agent=predicted).observe(latency)
+            METRIC_REQUESTS.labels(endpoint="/api/chat", agent=predicted, status="cache_hit").inc()
             return
 
         # ── Cache miss — invoke the graph ───────────────────────────────────
@@ -261,7 +348,19 @@ async def chat(req: ChatRequest):
                     req.session_id, agent_used,
                     total_input_tokens, total_output_tokens, latency_ms)
 
+            # Record metrics
+            latency = _time.time() - req_start
+            METRIC_DURATION.labels(endpoint="/api/chat", agent=agent_used).observe(latency)
+            METRIC_REQUESTS.labels(endpoint="/api/chat", agent=agent_used, status="ok").inc()
+            METRIC_INPUT_TOKENS.labels(agent=agent_used).inc(total_input_tokens)
+            METRIC_OUTPUT_TOKENS.labels(agent=agent_used).inc(total_output_tokens)
+            # Groq pricing: $0.11/M input, $0.34/M output
+            cost = (total_input_tokens / 1_000_000 * 0.11) + (total_output_tokens / 1_000_000 * 0.34)
+            METRIC_COST_USD.labels(agent=agent_used).inc(cost)
+
         except asyncio.TimeoutError:
+            METRIC_TIMEOUTS.inc()
+            METRIC_REQUESTS.labels(endpoint="/api/chat", agent=predicted, status="timeout").inc()
             yield f"data: {json.dumps({'type': 'agent', 'agent': predicted, 'trace': []})}\n\n"
             timeout_msg = (
                 "## Request Timed Out\n\n"
@@ -276,6 +375,8 @@ async def chat(req: ChatRequest):
                 yield chunk
 
         except Exception as e:
+            METRIC_ERRORS.labels(endpoint="/api/chat").inc()
+            METRIC_REQUESTS.labels(endpoint="/api/chat", agent=predicted, status="error").inc()
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)[:200]})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -393,6 +494,13 @@ async def health():
                 _health_cache["data"] = dict(results)
                 _health_cache["ts"] = _time.time()
     return {"services": _health_cache["data"], "cached_at": _health_cache["ts"]}
+
+
+# ── /metrics — Prometheus-compatible metrics endpoint ─────────────────────────
+@app.get("/metrics")
+async def metrics():
+    METRIC_CACHE_SIZE.set(len(_resp_cache))
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # ── /api/costs ─────────────────────────────────────────────────────────────────

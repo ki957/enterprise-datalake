@@ -26,6 +26,16 @@ export default function App() {
     if (agent) setActiveAgent(agent)
   }, [openCostDashboard, setActiveAgent])
 
+  // BFCache fix: Chrome's back-forward cache restores the JS heap on F5/navigation,
+  // keeping old Zustand messages alive. Force a new session when the page thaws.
+  useEffect(() => {
+    const onPageShow = (e) => {
+      if (e.persisted) useStore.getState().newSession()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
   return (
     <div className="flex flex-col h-screen bg-base overflow-hidden">
       <Header />

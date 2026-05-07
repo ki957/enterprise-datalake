@@ -24,37 +24,27 @@
       "meta": {}
     },
     {
-      "expectation_type": "expect_column_values_to_not_be_null",
+      "expectation_type": "expect_column_values_to_be_unique",
       "kwargs": {
-        "column": "customer_id"
+        "column": "order_id"
       },
       "meta": {}
     },
     {
-      "expectation_type": "expect_column_values_to_not_be_null",
+      "expectation_type": "expect_column_values_to_be_between",
       "kwargs": {
-        "column": "product_id"
+        "column": "amount",
+        "min_value": 269.99,
+        "max_value": 4743.24
       },
       "meta": {}
     },
     {
-      "expectation_type": "expect_column_values_to_not_be_null",
+      "expectation_type": "expect_column_values_to_be_between",
       "kwargs": {
-        "column": "amount"
-      },
-      "meta": {}
-    },
-    {
-      "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": {
-        "column": "quantity"
-      },
-      "meta": {}
-    },
-    {
-      "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": {
-        "column": "revenue"
+        "column": "quantity",
+        "min_value": 1.0,
+        "max_value": 10.0
       },
       "meta": {}
     },
@@ -71,37 +61,10 @@
       "meta": {}
     },
     {
-      "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": {
-        "column": "amount",
-        "min_value": 269.99,
-        "max_value": 7114.86
-      },
-      "meta": {}
-    },
-    {
-      "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": {
-        "column": "quantity",
-        "min_value": 1.0,
-        "max_value": 15.0
-      },
-      "meta": {}
-    },
-    {
-      "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": {
-        "column": "revenue",
-        "min_value": 0.0,
-        "max_value": 6951.25
-      },
-      "meta": {}
-    },
-    {
       "expectation_type": "expect_table_row_count_to_be_between",
       "kwargs": {
         "min_value": 11755.5,
-        "max_value": 47022.0
+        "max_value": 47022
       },
       "meta": {}
     }

@@ -7,4 +7,4 @@
 
 SELECT toDate(addDays(toDate('2020-01-01'), number)) AS date_day
 FROM system.numbers
-WHERE date_day BETWEEN toDate('2020-01-01') AND toDate('2030-12-31')
+WHERE date_day <= toDate('2030-12-31')

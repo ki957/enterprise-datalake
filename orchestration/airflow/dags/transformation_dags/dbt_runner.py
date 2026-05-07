@@ -147,14 +147,22 @@ def generate_and_publish_docs(**ctx):
     stdout, td = _run_dbt(["docs", "generate"], "dbt_docs_generate")
     if td:
         nginx_target = f"{DBT_PROJECT}/target"
-        os.makedirs(nginx_target, exist_ok=True)
+        try:
+            os.makedirs(nginx_target, exist_ok=True)
+            test_path = os.path.join(nginx_target, ".write_test")
+            with open(test_path, "w") as _f:
+                _f.write("")
+            os.remove(test_path)
+        except OSError:
+            nginx_target = "/tmp/dbt_docs"
+            os.makedirs(nginx_target, exist_ok=True)
+            print(f"  WARNING: project target dir is read-only; publishing to {nginx_target}")
         for fname in ["manifest.json", "catalog.json", "index.html", "graph.gpickle"]:
             src = os.path.join(td, fname)
             dst = os.path.join(nginx_target, fname)
             if os.path.exists(src):
                 shutil.copy2(src, dst)
                 print(f"  Copied {fname} → {nginx_target}")
-        # Also copy run_results if present
         run_results = os.path.join(td, "run_results.json")
         if os.path.exists(run_results):
             shutil.copy2(run_results, os.path.join(nginx_target, "run_results.json"))

@@ -1,0 +1,47 @@
+<clickhouse>
+    <!-- Performance tuning for datalake workloads.
+         Applied alongside prometheus.xml via config.d mounting.
+         Memory limits are set conservatively for 2GB Docker limit. -->
+
+    <!-- Memory management -->
+    <max_memory_usage>1500000000</max_memory_usage>
+    <max_memory_usage_for_all_queries>1800000000</max_memory_usage_for_all_queries>
+
+    <!-- Thread tuning -->
+    <max_threads>2</max_threads>
+    <max_insert_threads>2</max_insert_threads>
+
+    <!-- Background merge pool (MergeTree) -->
+    <background_pool_size>4</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+
+    <!-- Cache tuning -->
+    <mark_cache_size>256000000</mark_cache_size>
+    <uncompressed_cache_size>512000000</uncompressed_cache_size>
+
+    <!-- Query cache for repeated analytical queries -->
+    <query_cache>
+        <max_size_in_bytes>64000000</max_size_in_bytes>
+        <max_entries>1024</max_entries>
+        <ttl>300</ttl>
+    </query_cache>
+
+    <!-- Connection limits -->
+    <max_concurrent_queries>50</max_concurrent_queries>
+
+    <!-- Insert/merge tuning -->
+    <max_partitions_per_insert_block>100</max_partitions_per_insert_block>
+
+    <!-- MergeTree tuning -->
+    <merge_tree>
+        <max_suspicious_broken_parts>10</max_suspicious_broken_parts>
+        <parts_to_delay_insert>300</parts_to_delay_insert>
+        <parts_to_throw_insert>600</parts_to_throw_insert>
+        <max_part_loading_threads>auto</max_part_loading_threads>
+        <max_suspicious_broken_parts_bytes>1000000000</max_suspicious_broken_parts_bytes>
+    </merge_tree>
+
+    <!-- Network buffers -->
+    <max_table_size_to_drop>0</max_table_size_to_drop>
+    <max_partition_size_to_drop>0</max_partition_size_to_drop>
+</clickhouse>

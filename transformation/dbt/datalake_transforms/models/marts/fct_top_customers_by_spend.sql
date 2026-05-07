@@ -3,4 +3,14 @@
 
 {{ config(schema='gold', materialized='table', engine='MergeTree()', order_by='tuple()') }}
 
-SELECT dc.customer_id, dc.name, round(sum(fo.revenue), 2) AS total_spend FROM {{ ref('fct_orders') }} fo JOIN {{ ref('dim_customers') }} dc ON fo.customer_key = dc.customer_key AND dc.is_current = 1 GROUP BY dc.customer_id, dc.name ORDER BY total_spend DESC LIMIT 10
+SELECT
+    dc.customer_id,
+    dc.full_name AS name,
+    round(sum(fo.revenue), 2) AS total_spend
+FROM {{ ref('fct_orders') }} fo
+JOIN {{ ref('dim_customers') }} dc
+    ON fo.customer_key = dc.customer_key
+    AND dc.is_current = 1
+GROUP BY dc.customer_id, dc.full_name
+ORDER BY total_spend DESC
+LIMIT 10

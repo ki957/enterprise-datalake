@@ -3,4 +3,14 @@
 
 {{ config(schema='gold', materialized='table', engine='MergeTree()', order_by='tuple()') }}
 
-WITH monthly_revenue AS ( SELECT product_category, toDate(order_date) AS order_month, SUM(revenue) AS total_revenue FROM {{ ref('fct_orders') }} GROUP BY product_category, toDate(order_date) ) SELECT product_category, order_month, total_revenue FROM monthly_revenue ORDER BY product_category, order_month
+WITH monthly_revenue AS (
+    SELECT
+        product_category,
+        toDate(order_date) AS order_month,
+        SUM(revenue) AS total_revenue
+    FROM {{ ref('fct_orders') }}
+    GROUP BY product_category, toDate(order_date)
+)
+SELECT product_category, order_month, total_revenue
+FROM monthly_revenue
+ORDER BY product_category, order_month

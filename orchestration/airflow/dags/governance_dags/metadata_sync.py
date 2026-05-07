@@ -78,8 +78,19 @@ def publish_dbt_docs(**ctx):
             raise RuntimeError("dbt docs generate failed")
 
         # Copy artifacts to the nginx-served target/
+        # /opt/datalake is mounted read-only in the Airflow container;
+        # fall back to /tmp/dbt_docs so the task doesn't fail the pipeline.
         nginx_dir = f"{DBT_PROJECT}/target"
-        os.makedirs(nginx_dir, exist_ok=True)
+        try:
+            os.makedirs(nginx_dir, exist_ok=True)
+            test_path = os.path.join(nginx_dir, ".write_test")
+            with open(test_path, "w") as f:
+                f.write("")
+            os.remove(test_path)
+        except OSError:
+            nginx_dir = "/tmp/dbt_docs"
+            os.makedirs(nginx_dir, exist_ok=True)
+            print(f"  WARNING: project target dir is read-only; publishing to {nginx_dir}")
         for fname in ["manifest.json", "catalog.json", "index.html", "graph.gpickle", "run_results.json"]:
             src = os.path.join(project_copy, "target", fname)
             if os.path.exists(src):

@@ -37,3 +37,12 @@ scrape_configs:
       - source_labels: [__path__]
         regex: '.*/([a-f0-9]{12})[a-f0-9]*-json\.log'
         target_label: container_id
+      # Derive service name from container_name (remove project prefix like "docker_")
+      - source_labels: [container_name]
+        regex: 'docker_(.+)'
+        target_label: service
+      # Fallback: if container_name not available, use container_id
+      - source_labels: [container_id]
+        regex: '(.+)'
+        target_label: service
+        replacement: '${1}'

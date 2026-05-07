@@ -50,6 +50,15 @@ make base  → make security → make storage → make transform → make servin
 - **LLM constraint**: `meta-llama/llama-4-scout-17b-16e-instruct`, `streaming=False` (Groq), ≤4 tools/agent
 - **Agent-generated dbt models**: Only write to `models/marts/` (never silver/gold/staging) via `tools/dbt_write_tools.py`
 
+### Groq Tool-Calling Rules (break if violated)
+
+- **All optional params must be `str`** — Groq rejects `int`/`bool` defaults: `limit: int = 30` → LLM passes `"30"` → 400 error. Always use `str` and convert internally.
+- **Zero-arg tools break schema generation** — every `@tool` must have at least one optional `str` param.
+- **`create_chart` takes `labels: str, values: str`** — LLM passes comma-separated strings, not arrays. `_parse_list()` in `chart_tools.py` handles the conversion.
+- **STEP 0 must be a compact one-liner** — verbose "Do NOT call any tools" blocks in STEP 0 bleed into technical paths and cause `Failed to call a function`. Pattern used by all agents: `ANALOGY QUESTIONS (contain "..."): answer with metaphor. TECHNICAL QUESTIONS: call tools.`
+- **Response format scoping** — mark structured footers as "for technical requests only — NOT for analogy questions" or the footer appears on creative answers.
+- **Mandatory tool calls** — write "ALWAYS call X" not "call X if condition". Conditional phrasing causes the step to be skipped.
+
 ## ClickHouse Quirks
 
 - **Port**: Host = `localhost:9002` (native), Inside Docker = `clickhouse:9000`

@@ -7,16 +7,18 @@ Run:
     python scripts/setup_clickhouse_bronze.py
 """
 
+import os
+
 import clickhouse_connect
 
-CLICKHOUSE_HOST = "localhost"
-CLICKHOUSE_PORT = 8123
-CLICKHOUSE_USER = "default"
-CLICKHOUSE_PASSWORD = "Click@2024"
+CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
+CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_HTTP_PORT", "8123"))
+CLICKHOUSE_USER = os.getenv("CLICKHOUSE_DEFAULT_USER", "default")
+CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_DEFAULT_PASSWORD")
 
-MINIO_ENDPOINT = "http://minio:9000"
-MINIO_ACCESS   = "admin"
-MINIO_SECRET   = "Minio@2024"
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
+MINIO_ACCESS   = os.getenv("MINIO_ACCESS_KEY", "admin")
+MINIO_SECRET   = os.getenv("MINIO_SECRET_KEY")
 MINIO_BUCKET   = "raw"
 
 

@@ -38,15 +38,11 @@ scrape_configs:
 
   # ── Airflow StatsD metrics via Prometheus exporter ───────────────────────────
   # Airflow → StatsD → statsd-exporter → Prometheus
-  # TODO: add statsd-exporter container to governance compose and set
-  # AIRFLOW__METRICS__STATSD_ON=True + AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
-  # The Airflow webserver does not expose /metrics natively — scraping it directly
-  # returns 404. Commented out until the exporter is deployed.
-  # - job_name: airflow
-  #   static_configs:
-  #     - targets: ['statsd-exporter:9102']
-  #   metrics_path: /metrics
-  #   scrape_interval: 30s
+  - job_name: airflow
+    static_configs:
+      - targets: ['statsd-exporter:9102']
+    metrics_path: /metrics
+    scrape_interval: 30s
 
   # ── PostgreSQL exporter ───────────────────────────────────────────────────────
   # Uncomment when postgres-exporter container is added to serving compose.
@@ -54,8 +50,27 @@ scrape_configs:
   #   static_configs:
   #     - targets: ['postgres-exporter:9187']
 
+  # ── Kafka JMX metrics ────────────────────────────────────────────────────────
+  - job_name: kafka
+    static_configs:
+      - targets: ['jmx-exporter:5556']
+    scrape_interval: 30s
+
+  # ── Kafka Connect ────────────────────────────────────────────────────────────
+  - job_name: kafka-connect
+    static_configs:
+      - targets: ['kafka-connect:8083']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # ── AI Agent metrics ────────────────────────────────────────────────────────
+  - job_name: ai-agent
+    static_configs:
+      - targets: ['ai-agent:8502']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
   # ── Node exporter (host metrics) ─────────────────────────────────────────────
-  # Uncomment when node-exporter is added to base compose.
-  # - job_name: node
-  #   static_configs:
-  #     - targets: ['node-exporter:9100']
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']

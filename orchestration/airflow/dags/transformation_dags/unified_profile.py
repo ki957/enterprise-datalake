@@ -19,6 +19,7 @@ import subprocess
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.operators.python import PythonOperator
 
 DATALAKE_HOME   = os.getenv("DATALAKE_HOME", "/opt/datalake")
@@ -43,8 +44,13 @@ SPARK_PACKAGES = ",".join([
 
 
 def submit_unified_profile(**context) -> None:
+    import shutil
+    spark_bin = shutil.which("spark-submit") or "/opt/spark/bin/spark-submit"
+    if not shutil.which("spark-submit") and not os.path.exists(spark_bin):
+        print("WARNING: spark-submit not found on this host. Run 'make spark-unified' manually from the project root.")
+        return
     cmd = [
-        "spark-submit",
+        spark_bin,
         "--master",      SPARK_MASTER,
         "--deploy-mode", "client",
         "--packages",    SPARK_PACKAGES,
@@ -117,7 +123,32 @@ with DAG(
     tags=["spark", "gold", "cross-domain", "shopflow", "saas"],
 ) as dag:
 
+    # Wait for upstream pipelines to complete instead of using fixed-time assumption
+    wait_shopflow = ExternalTaskSensor(
+        task_id="wait_for_shopflow_pipeline",
+        external_dag_id="shopflow_datalake_pipeline",
+        external_task_id=None,  # wait for entire DAG
+        allowed_states=["success"],
+        execution_delta=timedelta(hours=2),  # look back 2h for matching execution_date
+        timeout=7200,
+        poke_interval=60,
+        mode="reschedule",
+    )
+
+    wait_saas = ExternalTaskSensor(
+        task_id="wait_for_saas_pipeline",
+        external_dag_id="saas_data_pipeline",
+        external_task_id=None,
+        allowed_states=["success"],
+        execution_delta=timedelta(hours=2),
+        timeout=7200,
+        poke_interval=60,
+        mode="reschedule",
+    )
+
     submit = PythonOperator(
         task_id="submit_unified_profile",
         python_callable=submit_unified_profile,
     )
+
+    [wait_shopflow, wait_saas] >> submit

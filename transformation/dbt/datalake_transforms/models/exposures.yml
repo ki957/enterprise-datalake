@@ -1,0 +1,81 @@
+version: 2
+
+exposures:
+
+  - name: superset_executive_dashboard
+    label: Executive Dashboard
+    type: dashboard
+    maturity: high
+    description: >
+      C-suite executive dashboard in Apache Superset showing real-time
+      revenue, churn rate, and cohort retention. Powers the Monday
+      leadership review.
+    depends_on:
+      - ref('fct_orders')
+      - ref('fct_mrr')
+      - ref('dim_customers')
+      - ref('fct_customer_churn_rate')
+    owner:
+      name: Analytics Team
+      email: analytics@company.com
+
+  - name: ai_agent_nl_query
+    label: AI Natural Language Query
+    type: application
+    maturity: high
+    description: >
+      The AI Agent service (services/ai-agent) that answers natural
+      language questions by querying dbt models through ClickHouse.
+    depends_on:
+      - ref('fct_orders')
+      - ref('fct_mrr')
+      - ref('fct_customer_journey')
+      - ref('fct_vendor_performance')
+      - ref('fct_customer_lifetime_value_by_segment')
+    owner:
+      name: Data Platform Team
+      email: data-platform@company.com
+
+  - name: shopflow_operational_report
+    label: ShopFlow Operational Report
+    type: dashboard
+    maturity: medium
+    description: >
+      Daily operational report for the ShopFlow e-commerce team.
+      Tracks order fulfillment, vendor performance, and revenue trends.
+    depends_on:
+      - ref('fct_orders')
+      - ref('fct_vendor_performance')
+      - ref('dim_products')
+    owner:
+      name: ShopFlow Operations
+      email: ops@shopflow.com
+
+  - name: saas_cohort_analysis
+    label: SaaS Cohort Analysis
+    type: analysis
+    maturity: medium
+    description: >
+      Monthly cohort analysis for SaaS subscription retention and
+      expansion revenue. Used by the growth team for planning.
+    depends_on:
+      - ref('fct_mrr')
+      - ref('fct_customer_churn_rate')
+      - ref('stg_subscriptions')
+    owner:
+      name: Growth Team
+      email: growth@company.com
+
+  - name: grafana_data_quality_dashboard
+    label: Data Quality Dashboard
+    type: dashboard
+    maturity: high
+    description: >
+      Grafana dashboard monitoring data freshness, pipeline latency,
+      and row count anomalies across all dbt models.
+    depends_on:
+      - ref('fct_orders')
+      - ref('fct_mrr')
+    owner:
+      name: Data Platform Team
+      email: data-platform@company.com

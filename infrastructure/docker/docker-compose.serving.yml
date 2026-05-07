@@ -30,3 +30,8 @@ services:
         ipv4_address: 172.19.0.8
       frontend-net:
         ipv4_address: 172.18.0.9
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"

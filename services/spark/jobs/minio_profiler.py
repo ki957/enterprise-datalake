@@ -35,7 +35,13 @@ from pyspark.sql.types import (
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS   = os.getenv("MINIO_ACCESS_KEY", "admin")
-MINIO_SECRET   = os.getenv("MINIO_SECRET_KEY", "Minio@2024")
+MINIO_SECRET   = os.getenv("MINIO_SECRET_KEY")
+
+if not MINIO_SECRET:
+    raise ValueError(
+        "MINIO_SECRET_KEY environment variable is required. "
+        "Set it via .env or export MINIO_SECRET_KEY=..."
+    )
 
 OUTPUT_PATH = f"s3a://logs/profiling/{date.today().isoformat()}"
 

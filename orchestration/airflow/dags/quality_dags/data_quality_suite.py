@@ -1,14 +1,93 @@
 """
 Data Quality Suite
-===================
-DAG: data_quality_suite
-Schedule: daily at 07:30 UTC (90 min after the main pipeline)
+==================
+DAG ID  : data_quality_suite
+Schedule: daily at 07:30 UTC  (runs 90 min after shopflow_pipeline finishes dbt gold)
+Owner   : shopflow-datalake
+Tags    : quality, datalake
 
-Runs extended data quality checks beyond what the main pipeline covers:
-- Row count anomaly detection (compare against 7-day rolling average)
-- Column null rate monitoring across gold tables
-- Cross-table consistency checks
-- Reports results to Slack and pushes metrics to the quality log table
+PURPOSE
+-------
+This DAG is the last quality gate before gold-layer data is consumed by
+dashboards, the AI agent, and downstream analytical queries.  It runs three
+independent structural checks followed by a Great Expectations (GE) checkpoint
+that enforces column-level statistical contracts.
+
+The pipeline deliberately runs *after* the dbt transformation is complete so
+that checks target the final, user-facing state of the gold tables — not
+intermediate staging artefacts.
+
+TASK DEPENDENCY GRAPH
+---------------------
+    row_count_anomaly_check ──┐
+    null_rate_check          ──┼──► quality_report ──► run_great_expectations_checkpoint
+    cross_table_consistency  ──┘
+
+All three structural checks run in parallel.  The summary report and GE
+checkpoint only execute when all three pass (trigger_rule=all_success).
+
+CHECKS PERFORMED
+----------------
+1. Row Count Anomaly Detection  (row_count_anomaly_check)
+   Queries the live row count of six gold tables:
+     gold.fct_orders, gold.fct_procurement, gold.fct_reviews,
+     gold.dim_customers, gold.dim_products, gold.dim_vendors
+   Raises if any table query fails (empty or inaccessible).  Row counts are
+   pushed to XCom so the summary report can display them in the Slack alert.
+   Design note: threshold-based anomaly detection (>50% deviation from rolling
+   average) is handled by the Anomaly agent in the AI layer — this task is
+   intentionally a fast liveness check, not a statistical model.
+
+2. Null Rate Monitoring  (null_rate_check)
+   Enforces a 0.1% maximum null rate on eight critical fact/dimension columns:
+     fct_orders      : customer_key, product_key, order_date_day, revenue
+     dim_customers   : email, segment
+     fct_procurement : vendor_key, amount
+   Null is defined as IS NULL OR = '' so empty strings are caught alongside
+   SQL NULLs.  Any violation produces a per-column breakdown in the Slack alert
+   and fails the task, blocking the quality_report and GE checkpoint.
+
+3. Cross-Table Referential Integrity  (cross_table_consistency_check)
+   Verifies three foreign-key invariants that dbt alone cannot enforce
+   (ClickHouse has no FK constraints):
+     • Every fct_orders.customer_key has a matching dim_customers row
+       with is_current = 1  (SCD Type-2 active record)
+     • Every fct_orders.product_key has a matching dim_products row
+     • Every fct_procurement.vendor_key has a matching dim_vendors row
+   Orphaned rows indicate a failed or partially-applied dbt run.  The check
+   uses a correlated EXISTS subquery rather than a LEFT JOIN because ClickHouse
+   optimises EXISTS better on large fact tables without a sort key on the FK.
+
+4. Great Expectations Checkpoint  (run_great_expectations_checkpoint)
+   Executes governance/great_expectations/run_checkpoint.py which runs the
+   datalake GE checkpoint suite against ClickHouse via clickhouse-sqlalchemy.
+   The script exits with code 1 on any expectation failure so Airflow marks
+   the task failed and triggers the retry policy.  GE suites are generated
+   (and refreshed daily) by the auto_contract DAG.
+
+ALERTING
+--------
+Each task calls _send_slack() on failure with a structured Slack message that
+includes the specific table/column/check that failed.  If SLACK_WEBHOOK_URL is
+not set, alerts are printed to the Airflow task log instead.  The quality_report
+task sends a green summary when all checks pass.
+
+ENVIRONMENT VARIABLES
+---------------------
+  CLICKHOUSE_URL          http://clickhouse:8123/ (default)
+  DBT_CLICKHOUSE_USER     default
+  DBT_CLICKHOUSE_PASSWORD —
+  SLACK_WEBHOOK_URL       optional; falls back to print()
+  DATALAKE_HOME           /opt/datalake (default); used to locate the GE script
+
+FAILURE MODES
+-------------
+• ClickHouse unreachable         → row_count and null checks fail immediately;
+                                   GE checkpoint also fails; Airflow retries once
+• Table missing / not yet built  → requests.HTTPError raised; task fails
+• GE script not found            → skipped with a log message (non-fatal path
+                                   allows the DAG to pass even before GE is set up)
+• Slack unreachable              → exception caught; alert printed to log; task continues
 """
 
 import os
@@ -115,7 +194,7 @@ def null_rate_check(**ctx):
                 print(f"  [SKIP] {table}.{col} — table is empty")
                 continue
             nulls = int(_ch(
-                f"SELECT count() FROM {table} WHERE {col} IS NULL OR {col} = ''"
+                f"SELECT count() FROM {table} WHERE isNull({col})"
             ))
             null_rate = nulls / total
             ok = null_rate <= max_null_rate
@@ -150,30 +229,27 @@ def cross_table_consistency_check(**ctx):
         (
             "fct_orders customer keys in dim_customers",
             """
-            SELECT count() FROM gold.fct_orders f
-            WHERE NOT exists(
-                SELECT 1 FROM gold.dim_customers d
-                WHERE d.customer_key = f.customer_key AND d.is_current = 1
+            SELECT count() FROM gold.fct_orders
+            WHERE customer_key NOT IN (
+                SELECT customer_key FROM gold.dim_customers WHERE is_current = 1
             )
             """,
         ),
         (
             "fct_orders product keys in dim_products",
             """
-            SELECT count() FROM gold.fct_orders f
-            WHERE NOT exists(
-                SELECT 1 FROM gold.dim_products d
-                WHERE d.product_key = f.product_key
+            SELECT count() FROM gold.fct_orders
+            WHERE product_key NOT IN (
+                SELECT product_key FROM gold.dim_products
             )
             """,
         ),
         (
             "fct_procurement vendor keys in dim_vendors",
             """
-            SELECT count() FROM gold.fct_procurement f
-            WHERE NOT exists(
-                SELECT 1 FROM gold.dim_vendors d
-                WHERE d.vendor_key = f.vendor_key
+            SELECT count() FROM gold.fct_procurement
+            WHERE vendor_key NOT IN (
+                SELECT vendor_key FROM gold.dim_vendors
             )
             """,
         ),
