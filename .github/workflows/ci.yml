@@ -30,6 +30,7 @@ jobs:
           detect-secrets scan \
             --exclude-files '\.env\.example$' \
             --exclude-files '\.git/.*' \
+            --exclude-files '\.secrets\.baseline.*' \
             > .secrets.baseline.new
           python3 - << 'PYEOF'
           import json, sys
@@ -313,7 +314,7 @@ jobs:
         env:
           CLICKHOUSE_DEFAULT_PASSWORD: test_password
           CLICKHOUSE_GE_HOST: localhost
-          CLICKHOUSE_GE_PORT: "18123"
+          CLICKHOUSE_GE_PORT: "19000"
 
       - name: Tear down test container
         if: always()
@@ -375,26 +376,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scan Airflow Dockerfile for misconfigurations
-        uses: aquasecurity/trivy-action@0.28.0
-        continue-on-error: true
-        with:
-          scan-type: fs
-          scan-ref: infrastructure/docker/
-          format: table
-          severity: HIGH,CRITICAL
-          exit-code: 0
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get install -y trivy
+
+      - name: Scan infrastructure for misconfigurations
+        run: |
+          trivy fs infrastructure/docker/ \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --format table || true
 
       - name: Scan Python dependencies for known CVEs
-        uses: aquasecurity/trivy-action@0.28.0
-        continue-on-error: true
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          severity: HIGH,CRITICAL
-          exit-code: 0
-          skip-dirs: .git,node_modules,.venv
+        run: |
+          trivy fs . \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --format table \
+            --skip-dirs .git,node_modules,.venv || true
 
   # ── 8. SQL lint (sqlfluff) ─────────────────────────────────────────────────
   sql-lint:

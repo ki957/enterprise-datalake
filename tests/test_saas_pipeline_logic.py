@@ -38,7 +38,7 @@ class TestChInsert:
         """Helper: call _ch_insert and return the body sent to ClickHouse."""
         with patch("requests.post") as mock_post:
             mock_post.return_value.raise_for_status = lambda: None
-            pipeline._ch_insert("raw.saas_users", rows, columns)
+            pipeline.ch_insert("raw.saas_users", rows, columns)
             if mock_post.called:
                 call = mock_post.call_args
                 body = call.kwargs.get("data") or (call.args[1] if len(call.args) > 1 else b"")
@@ -70,7 +70,7 @@ class TestChInsert:
 
     def test_empty_rows_skips_http_call(self):
         with patch("requests.post") as mock_post:
-            pipeline._ch_insert("raw.saas_users", [], ["id", "email"])
+            pipeline.ch_insert("raw.saas_users", [], ["id", "email"])
             mock_post.assert_not_called()
 
     def test_multiple_rows_each_on_separate_line(self):

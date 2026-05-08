@@ -134,3 +134,6 @@ networks:
   backend-net:
     external: true
     name: docker_backend-net
+  management-net:
+    external: true
+    name: docker_management-net
