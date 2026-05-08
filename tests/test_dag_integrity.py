@@ -38,12 +38,14 @@ if str(DAGS_ROOT) not in sys.path:
 
 
 def _collect_dag_files() -> list[Path]:
-    """Recursively find all .py files under the dags root, excluding __pycache__ and common/."""
+    """Recursively find all .py files under the dags root, excluding __pycache__, common/ helper
+    modules, and *_tasks.py utility files (which define task functions, not DAG objects)."""
     return [
         p for p in DAGS_ROOT.rglob("*.py")
         if "__pycache__" not in str(p)
         and not p.name.startswith("_")
         and "common" not in p.parts
+        and not p.name.endswith("_tasks.py")
     ]
 
 

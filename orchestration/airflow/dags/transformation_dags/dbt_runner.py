@@ -174,7 +174,7 @@ def generate_and_publish_docs(**ctx):
 
 default_args = {
     "owner": "shopflow-datalake",
-    "retries": 0,
+    "retries": 1,
     "email_on_failure": False,
 }
 
