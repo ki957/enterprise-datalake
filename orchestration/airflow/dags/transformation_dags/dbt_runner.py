@@ -43,7 +43,8 @@ def _send_slack(message: str) -> None:
 
 
 def _run_dbt(command: list[str], task_label: str) -> tuple[str, str | None]:
-    import shutil, tempfile
+    import shutil
+    import tempfile
     tmp_dir = tempfile.mkdtemp(prefix="dbt_run_")
     project_copy = os.path.join(tmp_dir, "project")
     try:

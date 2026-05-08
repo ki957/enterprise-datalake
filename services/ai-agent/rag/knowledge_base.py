@@ -870,7 +870,7 @@ _LIVE_SYNC_SCHEMAS = ["gold", "raw", "staging"]
 
 def _docs_hash() -> str:
     content = "".join(d["text"] for d in _ALL_DOCS)
-    return hashlib.md5(content.encode()).hexdigest()  # noqa: S324
+    return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()  # noqa: S324
 
 
 def get_collection():

@@ -156,7 +156,7 @@ def bulk_insert_chunked(conn, cursor, table: str, row_gen, total: int) -> int:
     for row in row_gen:
         if cols is None:
             cols = list(row.keys())
-            ph   = ", ".join([f"%s"] * len(cols))
+            ph   = ", ".join(["%s"] * len(cols))
             sql  = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({ph})"
         chunk.append(tuple(row[c] for c in cols))
         if len(chunk) >= CHUNK_SIZE:

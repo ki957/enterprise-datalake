@@ -17,8 +17,8 @@ def _run_dbt(args: list[str]) -> str:
         output = result.stdout + result.stderr
         # Return last meaningful lines
         lines = [
-            l for l in output.split("\n")
-            if any(kw in l for kw in ["PASS", "FAIL", "ERROR", "Completed", "Warning", "Running"])
+            line for line in output.split("\n")
+            if any(kw in line for kw in ["PASS", "FAIL", "ERROR", "Completed", "Warning", "Running"])
         ]
         return "\n".join(lines[-15:]) or output[-600:]
     except subprocess.TimeoutExpired:

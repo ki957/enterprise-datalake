@@ -88,7 +88,7 @@ def http_get(url: str, retries: int = 3) -> dict | list:
             req = urllib.request.Request(url, headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.load(resp)
-        except Exception as e:
+        except Exception:
             if attempt == retries - 1:
                 raise
             time.sleep(2 ** attempt)

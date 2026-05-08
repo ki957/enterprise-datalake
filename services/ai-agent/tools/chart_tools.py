@@ -58,7 +58,7 @@ def create_chart(
     main numeric column as values from the returned markdown table.
     """
     try:
-        labs = [str(l) for l in _parse_list(labels)]
+        labs = [str(label) for label in _parse_list(labels)]
         vals = [float(str(v).replace(",", "")) for v in _parse_list(values)]
 
         fig = go.Figure()

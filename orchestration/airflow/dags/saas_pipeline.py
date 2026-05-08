@@ -179,9 +179,9 @@ def observability_check(**context):
 
     if rows:
         ch_exec(
-            f"INSERT INTO pipeline_metadata.observability_runs "
-            f"(run_date, pipeline, table_name, row_count, prev_count, delta_pct, status) "
-            f"FORMAT TabSeparated\n" + "\n".join(rows)
+            "INSERT INTO pipeline_metadata.observability_runs "
+            "(run_date, pipeline, table_name, row_count, prev_count, delta_pct, status) "
+            "FORMAT TabSeparated\n" + "\n".join(rows)
         )
 
     if anomalies:
@@ -194,8 +194,8 @@ def observability_check(**context):
 def data_quality_check(**context):
     users  = int(ch_exec("SELECT count() FROM raw.saas_users"))
     events = int(ch_exec("SELECT count() FROM raw.saas_events"))
-    assert users > 0,  f"No users in raw.saas_users"
-    assert events > 0, f"No events in raw.saas_events"
+    assert users > 0,  "No users in raw.saas_users"
+    assert events > 0, "No events in raw.saas_events"
     print(f"Quality check passed — {users:,} users, {events:,} events")
 
 

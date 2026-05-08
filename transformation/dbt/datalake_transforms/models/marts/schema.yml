@@ -72,3 +72,261 @@ models:
       - name: total_subscribers
         tests:
           - not_null
+
+  - name: fct_weekly_active_users
+    description: Weekly active users with 7-day rolling window by cohort. Grain — one row per user per day.
+    columns:
+      - name: user_id
+        description: FK to dim_users
+        tests:
+          - not_null
+      - name: day
+        description: Calendar date
+        tests:
+          - not_null
+      - name: cohort_day
+        description: First active day for this user's cohort
+        tests:
+          - not_null
+      - name: active_users_7d
+        description: Rolling 7-day active user count within the cohort
+        tests:
+          - not_null
+
+  - name: fct_top_customers_by_spend
+    description: Top 10 customers by total revenue. Grain — one row per customer.
+    columns:
+      - name: customer_id
+        description: Source customer ID
+        tests:
+          - not_null
+      - name: name
+        description: Customer full name
+        tests:
+          - not_null
+      - name: total_spend
+        description: Total revenue rounded to 2dp
+        tests:
+          - not_null
+
+  - name: fct_customer_journey
+    description: Cross-domain customer journey combining SaaS subscription and ShopFlow spend. Grain — one row per email.
+    columns:
+      - name: email
+        description: Customer email (join key across domains)
+        tests:
+          - not_null
+      - name: signup_date
+        description: SaaS signup date
+      - name: initial_plan
+        description: Plan at signup
+      - name: initial_mrr
+        description: MRR at signup
+      - name: plan
+        description: Current plan
+      - name: mrr
+        description: Current MRR
+      - name: total_shopflow_revenue
+        description: Lifetime ShopFlow revenue
+      - name: churn_date
+        description: Subscription cancellation date (null if active)
+      - name: is_churned
+        description: 1 if subscription cancelled, 0 otherwise
+
+  - name: fct_loyal_customers
+    description: Customers with more than 5 orders and $1000+ lifetime revenue. Grain — one row per customer.
+    columns:
+      - name: customer_key
+        description: Surrogate key FK to dim_customers
+        tests:
+          - not_null
+      - name: full_name
+        description: Customer full name
+        tests:
+          - not_null
+      - name: country
+        description: Customer country
+        tests:
+          - not_null
+      - name: total_revenue
+        description: Lifetime revenue from completed orders
+        tests:
+          - not_null
+      - name: order_count
+        description: Number of orders placed
+        tests:
+          - not_null
+
+  - name: fct_mrr_by_plan
+    description: MRR aggregated by subscription plan. Grain — one row per plan.
+    columns:
+      - name: plan
+        description: Subscription plan name
+        tests:
+          - not_null
+      - name: total_mrr
+        description: Sum of MRR across all subscribers on this plan
+        tests:
+          - not_null
+
+  - name: fct_monthly_revenue_trend_by_category
+    description: Month-over-month revenue growth by product category. Grain — one row per month+category.
+    columns:
+      - name: month
+        description: First day of the month
+        tests:
+          - not_null
+      - name: category
+        description: Product category
+        tests:
+          - not_null
+      - name: revenue
+        description: Total revenue for this month and category
+        tests:
+          - not_null
+      - name: prev_revenue
+        description: Revenue in the prior month for MoM comparison
+      - name: mom_growth_pct
+        description: Month-over-month growth percentage (null if no prior month)
+
+  - name: fct_rolling_revenue_by_category
+    description: 30-day rolling revenue by product category. Grain — one row per category.
+    columns:
+      - name: product_category
+        description: Product category
+        tests:
+          - not_null
+      - name: total_revenue
+        description: Revenue summed over the last 30 days
+        tests:
+          - not_null
+
+  - name: fct_customer_lifetime_value_by_segment
+    description: Lifetime revenue aggregated by customer segment. Grain — one row per segment.
+    columns:
+      - name: segment
+        description: Customer segment (B2B, B2C, VIP)
+        tests:
+          - not_null
+      - name: lifetime_value
+        description: Sum of order revenue for all customers in this segment
+        tests:
+          - not_null
+
+  - name: fct_vendor_performance
+    description: Vendor delivery performance and average order size. Grain — one row per vendor.
+    columns:
+      - name: vendor_key
+        description: Surrogate key FK to dim_vendors
+        tests:
+          - not_null
+      - name: vendor_name
+        description: Vendor name from dim_vendors
+      - name: total_orders
+        description: Number of purchase orders
+        tests:
+          - not_null
+      - name: on_time_deliveries
+        description: Number of orders delivered by the lead-time SLA
+        tests:
+          - not_null
+      - name: on_time_delivery_rate
+        description: Percentage of orders delivered on time (0–100)
+        tests:
+          - not_null
+      - name: average_order_size
+        description: Average order amount in source currency
+
+  - name: mart_product_enrichment
+    description: AI-enriched product records from Groq streaming enrichment. Grain — one row per product_id.
+    columns:
+      - name: product_id
+        description: PK — source product ID
+        tests:
+          - not_null
+      - name: product_name
+        description: Product name
+        tests:
+          - not_null
+      - name: original_category
+        description: Category from MySQL source
+      - name: enriched_category
+        description: AI-corrected/standardized category
+      - name: sentiment
+        description: AI sentiment label for the product listing
+      - name: quality_tier
+        description: AI-assigned quality tier
+      - name: keywords
+        description: AI-extracted keywords
+      - name: enriched_at
+        description: Timestamp when the Groq enrichment was applied
+        tests:
+          - not_null
+
+  - name: fct_revenue_by_category
+    description: Daily revenue by product category. Grain — one row per category+day.
+    columns:
+      - name: product_category
+        description: Product category
+        tests:
+          - not_null
+      - name: order_month
+        description: Date of the orders (daily grain despite name)
+        tests:
+          - not_null
+      - name: total_revenue
+        description: Sum of order revenue
+        tests:
+          - not_null
+
+  - name: fct_customer_churn_rate
+    description: Monthly customer churn rate from subscription cancellations. Grain — one row per month.
+    columns:
+      - name: month
+        description: First day of the month
+        tests:
+          - not_null
+      - name: churn_rate
+        description: Percentage of customers who cancelled (0–100)
+        tests:
+          - not_null
+      - name: churned
+        description: Count of cancellations in this month
+        tests:
+          - not_null
+      - name: total
+        description: Total active subscribers at the start of the month
+        tests:
+          - not_null
+
+  - name: fct_monthly_revenue_by_category
+    description: Monthly revenue by product category from ShopFlow orders. Grain — one row per month+category.
+    columns:
+      - name: month
+        description: First day of the month
+        tests:
+          - not_null
+      - name: category
+        description: Product category
+        tests:
+          - not_null
+      - name: revenue
+        description: Total revenue rounded to 2dp
+        tests:
+          - not_null
+
+  - name: fct_revenue_by_plan
+    description: Monthly SaaS revenue by subscription plan. Grain — one row per plan+month.
+    columns:
+      - name: plan
+        description: Subscription plan name
+        tests:
+          - not_null
+      - name: month
+        description: First day of the month
+        tests:
+          - not_null
+      - name: revenue
+        description: Sum of MRR for this plan and month
+        tests:
+          - not_null

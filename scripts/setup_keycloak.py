@@ -214,13 +214,13 @@ def main() -> None:
     create_realm(token)
     token = _admin_token()  # refresh after realm creation
 
-    print(f"\n[2/4] Creating Grafana OIDC client ...")
+    print("\n[2/4] Creating Grafana OIDC client ...")
     create_grafana_client(token)
 
-    print(f"\n[3/4] Creating Superset OIDC client ...")
+    print("\n[3/4] Creating Superset OIDC client ...")
     create_superset_client(token)
 
-    print(f"\n[4/4] Creating test user ...")
+    print("\n[4/4] Creating test user ...")
     create_test_user(token)
 
     print(f"""

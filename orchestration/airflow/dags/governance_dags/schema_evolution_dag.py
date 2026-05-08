@@ -287,7 +287,8 @@ def validate_dbt_compile(**ctx):
     Run dbt compile to verify sources.yml is valid.
     Rolls back sources.yml if compile fails.
     """
-    import subprocess, shutil
+    import subprocess
+    import shutil
 
     changed = ctx["ti"].xcom_pull(key="changed", task_ids="update_sources_yml")
     if not changed:

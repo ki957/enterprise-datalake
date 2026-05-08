@@ -1,0 +1,10 @@
+[sqlfluff]
+templater = dbt
+dialect = clickhouse
+exclude_rules = CP03,CV02,LT02
+
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = ~/.dbt
+profile = datalake_transforms
+target = ci

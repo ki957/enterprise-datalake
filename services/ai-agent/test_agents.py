@@ -2,7 +2,8 @@
 Quick smoke-test: run 2 questions against model_agent (nl_dbt) and contracts_agent.
 Scores each answer and prints PASS / NEEDS WORK.
 """
-import sys, textwrap
+import sys
+import textwrap
 
 from agents.nl_dbt_agent import create_nl_dbt_agent
 from agents.contract_agent import create_contract_agent

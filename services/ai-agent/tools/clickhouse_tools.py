@@ -59,7 +59,7 @@ def _execute(sql: str, database: Optional[str] = None):
         client = get_ch_client(db)
         return client.execute(sql, with_column_types=True)
     except (OSError, EOFError, ch_errors.NetworkError,
-            ch_errors.SocketTimeoutError) as exc:
+            ch_errors.SocketTimeoutError):
         # Stale connection — evict and retry once
         with _client_lock:
             _client_cache.pop(db, None)

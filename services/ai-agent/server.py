@@ -135,7 +135,7 @@ except ImportError:
 
 
 def _cache_key(message: str, agent: str) -> str:
-    return hashlib.md5(f"{agent}:{message.strip().lower()}".encode()).hexdigest()  # noqa: S324
+    return hashlib.md5(f"{agent}:{message.strip().lower()}".encode(), usedforsecurity=False).hexdigest()  # noqa: S324
 
 
 def _get_cached(key: str) -> dict | None:

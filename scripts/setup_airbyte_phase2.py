@@ -256,7 +256,7 @@ def main():
     print("=" * 60)
 
     token = get_token()
-    print(f"Authenticated. Token acquired.")
+    print("Authenticated. Token acquired.")
 
     # Reuse existing IDs if already created (idempotent re-run)
     dest_id = "02f98fd0-ac68-44a1-af0a-f4911fabc90a"

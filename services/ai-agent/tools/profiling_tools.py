@@ -72,9 +72,6 @@ def profile_table_stats(table: str, schema: str = "gold") -> str:
             return f"Table `{schema}.{table}` not found or has no columns."
 
         cols = cols[:12]  # cap at 12 columns to stay within timeout
-        col_names = [c[0] for c in cols]
-        col_types = {c[0]: c[1] for c in cols}
-
         # Single batch query — all null rates + cardinalities + numeric percentiles at once
         parts = ["count() AS _total_rows"]
         for name, typ in cols:
@@ -161,7 +158,6 @@ def get_airflow_run_history(dag_id: str, limit: int = 30) -> str:
         for r in runs:
             state    = r.get("state", "unknown")
             start    = (r.get("start_date") or "")[:16]
-            end      = (r.get("end_date") or "running")[:16]
             run_id   = r.get("dag_run_id", "")[:30]
             # compute duration in minutes if both times available
             duration = ""

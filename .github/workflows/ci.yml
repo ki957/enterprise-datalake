@@ -203,6 +203,8 @@ jobs:
                   continue
               if node.get("schema") in ("default",):
                   continue  # skip example models
+              if node.get("name") in ("metricflow_time_spine",):
+                  continue  # auto-generated spine model, no docs needed
               if not node.get("columns"):
                   undocumented.append(f'{node["schema"]}.{node["name"]}')
 
@@ -232,7 +234,8 @@ jobs:
           pip install \
             pytest==8.2.0 \
             psycopg2-binary==2.9.9 \
-            requests==2.31.0
+            requests==2.31.0 \
+            clickhouse-driver==0.2.9
 
       - name: Start test services
         run: |
@@ -314,7 +317,7 @@ jobs:
         env:
           CLICKHOUSE_DEFAULT_PASSWORD: test_password
           CLICKHOUSE_GE_HOST: localhost
-          CLICKHOUSE_GE_NATIVE_PORT: "19000"
+          CLICKHOUSE_GE_PORT: "18123"
 
       - name: Tear down test container
         if: always()
@@ -377,16 +380,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Scan Airflow Dockerfile for misconfigurations
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: config
-          scan-ref: infrastructure/docker/Dockerfile.airflow
+          scan-type: fs
+          scan-ref: infrastructure/docker/
           format: table
           severity: HIGH,CRITICAL
           exit-code: 0   # warn-only — change to 1 once baseline is established
 
       - name: Scan Python dependencies for known CVEs
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.20.0
         with:
           scan-type: fs
           scan-ref: .
@@ -428,9 +431,4 @@ jobs:
 
       - name: Lint dbt SQL models
         working-directory: transformation/dbt/datalake_transforms
-        run: |
-          sqlfluff lint models/ \
-            --dialect clickhouse \
-            --templater dbt \
-            --exclude-rules L016,L031,L034 \
-            --warn-unused-ignores
+        run: sqlfluff lint models/ --dialect clickhouse --templater dbt

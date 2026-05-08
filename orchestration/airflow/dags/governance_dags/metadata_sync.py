@@ -53,7 +53,8 @@ def publish_dbt_docs(**ctx):
     Run dbt docs generate and copy artifacts to the nginx-served target/ directory.
     The dbt-docs container at :8082 picks up the new files automatically.
     """
-    import shutil, tempfile
+    import shutil
+    import tempfile
 
     tmp_dir = tempfile.mkdtemp(prefix="dbt_docs_")
     project_copy = os.path.join(tmp_dir, "project")
