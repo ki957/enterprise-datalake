@@ -11,7 +11,7 @@ datasources:
       class_name: SqlAlchemyExecutionEngine
       # CLICKHOUSE_GE_HOST / CLICKHOUSE_GE_NATIVE_PORT allow CI to point at the
       # test container (localhost:19000) without touching production config.
-      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST:-localhost}:${CLICKHOUSE_GE_NATIVE_PORT:-9002}/gold"
+      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST}:${CLICKHOUSE_GE_PORT}/gold"
     data_connectors:
       default_inferred_data_connector_name:
         class_name: InferredAssetSqlDataConnector
@@ -21,7 +21,7 @@ datasources:
     class_name: Datasource
     execution_engine:
       class_name: SqlAlchemyExecutionEngine
-      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST:-localhost}:${CLICKHOUSE_GE_NATIVE_PORT:-9002}/staging"
+      connection_string: "clickhouse+native://default:${CLICKHOUSE_DEFAULT_PASSWORD}@${CLICKHOUSE_GE_HOST}:${CLICKHOUSE_GE_PORT}/staging"
     data_connectors:
       default_inferred_data_connector_name:
         class_name: InferredAssetSqlDataConnector

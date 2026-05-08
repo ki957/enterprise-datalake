@@ -78,14 +78,14 @@ def extract_postgres_to_clickhouse(**context):
         print(f"Extracted {len(events)} events")
 
         cur.execute(
-            "SELECT id, user_id, plan, status, billing_cycle, amount, started_at, expires_at "
+            "SELECT id, user_id, plan, status, billing_cycle, mrr, started_at, expires_at "
             "FROM saas_subscriptions"
         )
         subs = cur.fetchall()
         ch_exec("TRUNCATE TABLE IF EXISTS raw.saas_subscriptions")
         ch_insert(
             "raw.saas_subscriptions", subs,
-            ["id", "user_id", "plan", "status", "billing_cycle", "amount", "started_at", "expires_at"],
+            ["id", "user_id", "plan", "status", "billing_cycle", "mrr", "started_at", "expires_at"],
         )
         print(f"Extracted {len(subs)} subscriptions")
 
