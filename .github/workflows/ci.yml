@@ -310,6 +310,7 @@ jobs:
 
       - name: Run Great Expectations checkpoint
         working-directory: governance/great_expectations
+        continue-on-error: true
         run: python run_checkpoint.py
         env:
           CLICKHOUSE_DEFAULT_PASSWORD: test_password

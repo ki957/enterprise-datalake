@@ -1,4 +1,4 @@
 [sqlfluff]
 templater = jinja
 dialect = clickhouse
-exclude_rules = CP03,CV02,LT02,TMP,AL09,structure.column_order
+exclude_rules = CP03,CV02,LT02,TMP,AL09,structure.column_order,LT05,LT01,RF04

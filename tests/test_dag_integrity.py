@@ -32,12 +32,18 @@ os.environ.setdefault("AIRFLOW__CORE__FERNET_KEY", "l82azX1LorH_j3gdKvODS19mYePR
 
 DAGS_ROOT = Path(__file__).parent.parent / "orchestration" / "airflow" / "dags"
 
+# Add dags root to sys.path so 'from common.helpers import ...' resolves in all DAG files
+if str(DAGS_ROOT) not in sys.path:
+    sys.path.insert(0, str(DAGS_ROOT))
+
 
 def _collect_dag_files() -> list[Path]:
-    """Recursively find all .py files under the dags root, excluding __pycache__."""
+    """Recursively find all .py files under the dags root, excluding __pycache__ and common/."""
     return [
         p for p in DAGS_ROOT.rglob("*.py")
-        if "__pycache__" not in str(p) and not p.name.startswith("_")
+        if "__pycache__" not in str(p)
+        and not p.name.startswith("_")
+        and "common" not in p.parts
     ]
 
 
